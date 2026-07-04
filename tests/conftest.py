@@ -68,6 +68,15 @@ def gw():
 
 
 # ------------------------------------------------------- синтетические данные
+def make_components() -> list[dict]:
+    return [
+        {"id": "ni", "num": 28, "label": "Элемент 28 (Ni)", "unit": "т",
+         "recoverable_forms": ["Закрытый Pnt/Cp", "Миллерит", "Раскрытый Pnt/Cp"]},
+        {"id": "cu", "num": 29, "label": "Элемент 29 (Cu)", "unit": "т",
+         "recoverable_forms": ["Закрытый Pnt/Cp", "Раскрытый Pnt/Cp"]},
+    ]
+
+
 def make_parsed() -> dict:
     """Разобранный отчёт: 1 поток, 3 класса, формы с закрытым/раскрытым Ni."""
     def cls(name, share, locked, liberated, impurity):
@@ -93,6 +102,7 @@ def make_parsed() -> dict:
     return {
         "source_file": "Хвосты Тест.xlsx",
         "plant": "Тест",
+        "components": make_components(),
         "feed": {}, "tailings_fact": None, "warnings": [],
         "streams": [{
             "name": "Хвосты породные", "smt": 1000,
@@ -101,6 +111,35 @@ def make_parsed() -> dict:
             "size_classes": classes,
             "totals": {"ni_t": tot, "cu_t": 0,
                        "recoverable_ni_t": rec, "recoverable_cu_t": 0},
+        }],
+    }
+
+
+def make_parsed_custom(cid: str = "el27", label: str = "Элемент 27") -> dict:
+    """Отчёт с одним произвольным компонентом — конвейер не знает ni/cu."""
+    def cls_(name, share, locked, liberated):
+        forms = {}
+        if locked:
+            forms["Закрытый Pnt/Cp"] = {f"{cid}_t": locked}
+        if liberated:
+            forms["Раскрытый Pnt/Cp"] = {f"{cid}_t": liberated}
+        return {"cls": name, "share_pct": share, f"{cid}_t": locked + liberated,
+                "forms": forms, "recoverable": {f"{cid}_t": locked + liberated}}
+
+    classes = [cls_("+71", 30, 1600, 200), cls_("-45+20", 40, 400, 800),
+               cls_("-10", 30, 0, 1200)]
+    tot = sum(c[f"{cid}_t"] for c in classes)
+    return {
+        "source_file": "Хвосты Тест2.xlsx", "plant": "Тест2",
+        "components": [{"id": cid, "num": 27, "label": label, "unit": "т",
+                        "recoverable_forms": ["Закрытый Pnt/Cp",
+                                              "Раскрытый Pnt/Cp"]}],
+        "feed": {}, "tailings_fact": None, "warnings": [],
+        "streams": [{
+            "name": "Хвосты породные", "smt": 1000,
+            f"{cid}_pct": 0.5, f"{cid}_t": tot,
+            "aggregate": False, "size_classes": classes,
+            "totals": {f"{cid}_t": tot, f"recoverable_{cid}_t": tot},
         }],
     }
 

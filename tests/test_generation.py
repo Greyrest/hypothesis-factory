@@ -1,7 +1,7 @@
 """Generation: диагностика, генерация, ранжирование, произвольные гипотезы."""
 from __future__ import annotations
 
-from conftest import make_kb, make_parsed
+from conftest import make_kb, make_parsed, make_parsed_custom
 
 
 def test_diagnose_signals(gen):
@@ -86,6 +86,20 @@ def test_analyze_arbitrary_hypothesis(gen):
     assert card["scores"]["impact_t"] > 0
     assert card["evidence"], "обоснование обязательно"
     assert card["expected_effect"]["addressable_t"]["ni"] <= 6000
+
+
+def test_pipeline_metal_agnostic(gen):
+    """Диагностика и генерация работают с произвольным компонентом (не ni/cu)."""
+    d = gen["diagnosis"].diagnose(make_parsed_custom("el27", "Элемент 27"))
+    assert d["summary"]["losses_t"] == {"el27": 4200}
+    assert {f["element"] for f in d["findings"]} == {"el27"}
+    assert all(c["el"] == "el27" for c in d["cells"])
+
+    hyps = gen["generator"].rule_based_generate(d, make_kb())
+    assert hyps, "каталог порождает гипотезы и без ni/cu"
+    for h in hyps:
+        assert set(h["expected_effect"]["kpi_delta_t"]) == {"el27"}
+        assert h["expected_effect"]["addressable_t"]["el27"] <= 4200
 
 
 def test_generate_llm_off(gen):

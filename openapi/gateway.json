@@ -816,6 +816,39 @@
         ],
         "title": "Body_run_uploaded_api_v1_reports_post"
       },
+      "Component": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "default": "т"
+          },
+          "recoverable_forms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Recoverable Forms",
+            "default": []
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "Component",
+        "description": "Компонент потерь (элемент/минерал), извлечённый ingestion из отчёта.\n\nКонвейер не знает конкретных металлов: везде дальше используются id\nкомпонентов и словари, ключованные этими id."
+      },
       "Evidence": {
         "properties": {
           "source": {
@@ -1210,6 +1243,14 @@
             "type": "string",
             "title": "Engine"
           },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/Component"
+            },
+            "type": "array",
+            "title": "Components",
+            "default": []
+          },
           "summary": {
             "$ref": "#/components/schemas/Summary"
           },
@@ -1368,42 +1409,35 @@
       },
       "Summary": {
         "properties": {
-          "losses_ni_t": {
-            "type": "number",
-            "title": "Losses Ni T"
+          "losses_t": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Losses T",
+            "default": {}
           },
-          "losses_cu_t": {
-            "type": "number",
-            "title": "Losses Cu T"
+          "recoverable_t": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Recoverable T",
+            "default": {}
           },
-          "recoverable_ni_t": {
-            "type": "number",
-            "title": "Recoverable Ni T"
-          },
-          "recoverable_cu_t": {
-            "type": "number",
-            "title": "Recoverable Cu T"
-          },
-          "recoverable_ni_pct": {
-            "type": "number",
-            "title": "Recoverable Ni Pct"
-          },
-          "recoverable_cu_pct": {
-            "type": "number",
-            "title": "Recoverable Cu Pct"
+          "recoverable_pct": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Recoverable Pct",
+            "default": {}
           }
         },
         "additionalProperties": true,
         "type": "object",
-        "required": [
-          "losses_ni_t",
-          "losses_cu_t",
-          "recoverable_ni_t",
-          "recoverable_cu_t",
-          "recoverable_ni_pct",
-          "recoverable_cu_pct"
-        ],
-        "title": "Summary"
+        "title": "Summary",
+        "description": "Сводка потерь: словари по id компонента. Плоские алиасы вида\nlosses_<id>_t добавляются диагностикой для обратной совместимости\n(их читает фронтенд) и проходят через extra=\"allow\"."
       },
       "ValidationError": {
         "properties": {

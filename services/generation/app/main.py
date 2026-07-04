@@ -107,17 +107,19 @@ def rerank_endpoint(req: RerankRequest) -> list[dict]:
 def whatif_endpoint(req: WhatIfRequest) -> dict:
     """Контрфактуальный расчёт по ячейкам отчёта: адресуемый металл сигнала
     и эффект на KPI при устранении заданной доли потерь."""
-    from .generator import SIGNAL_CELLS
+    from .generator import SIGNAL_CELLS, comp_ids
     pred = SIGNAL_CELLS.get(req.signal)
     if pred is None:
         raise HTTPException(400, f"Неизвестный сигнал: {req.signal}. "
                                  f"Доступны: {sorted(SIGNAL_CELLS)}")
     pct = max(0.0, min(100.0, req.reduction_pct))
-    tons = {"ni": 0.0, "cu": 0.0}
+    tons = {el: 0.0 for el in comp_ids(req.diagnosis)}
     for cell in req.diagnosis.get("cells", []):
         if pred(cell):
-            tons[cell["el"]] += cell["tons"]
+            tons[cell["el"]] = tons.get(cell["el"], 0.0) + cell["tons"]
     summary = req.diagnosis.get("summary", {})
+    losses = summary.get("losses_t") or {
+        el: summary.get(f"losses_{el}_t", 0) for el in tons}
     delta = {el: round(t * pct / 100, 1) for el, t in tons.items()}
     return {
         "signal": req.signal,
@@ -125,8 +127,7 @@ def whatif_endpoint(req: WhatIfRequest) -> dict:
         "addressable_t": {el: round(t, 1) for el, t in tons.items()},
         "kpi_delta_t": delta,
         "losses_after_t": {
-            el: round(summary.get(f"losses_{el}_t", 0) - delta[el], 1)
-            for el in ("ni", "cu")},
+            el: round((losses.get(el) or 0) - delta[el], 1) for el in tons},
         "note": "Контрфактуальная оценка по ячейкам отчёта (поток × класс × "
                 "форма); допущение линейного устранения потерь.",
     }

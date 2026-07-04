@@ -3,7 +3,10 @@
 Устойчив к неполным данным: ячейки #REF!, пропуски, 1 или 2 потока хвостов
 (породные / пирротиновые), разный набор классов крупности.
 
-Элемент 28 -> Ni (никель), Элемент 29 -> Cu (медь) — по атомным номерам.
+Компоненты потерь («Элемент N») извлекаются из самого отчёта: конвейер не
+завязан на конкретные металлы. Для известных атомных номеров id компонента —
+символ элемента (28 -> ni, 29 -> cu), для прочих — el<N>. Все метрики дальше
+ключуются id компонента (поля вида <id>_t / <id>_pct и словари по id).
 """
 from __future__ import annotations
 
@@ -26,14 +29,45 @@ FORM_ALIASES = [
     ("свободный слот", "Свободный слот"),
 ]
 
-# Извлекаемые формы (по справке института):
-# эл.28 (Ni): раскрытый/закрытый Pnt + миллерит; эл.29 (Cu): раскрытый/закрытый Pnt/Cp
-RECOVERABLE_FORMS = {
-    "ni": {"Раскрытый Pnt/Cp", "Закрытый Pnt/Cp", "Миллерит"},
-    "cu": {"Раскрытый Pnt/Cp", "Закрытый Pnt/Cp"},
-}
+# Извлекаемые формы (по справке института): базово — раскрытые/закрытые
+# сульфиды; для отдельных элементов добавляются свои извлекаемые минералы
+# (эл.28/Ni — миллерит). Ключ — id компонента.
+BASE_RECOVERABLE_FORMS = {"Раскрытый Pnt/Cp", "Закрытый Pnt/Cp"}
+EXTRA_RECOVERABLE_FORMS = {"ni": {"Миллерит"}}
+
+# известные атомные номера -> (id, символ); прочие получают id el<N>
+ELEMENT_ALIASES = {28: ("ni", "Ni"), 29: ("cu", "Cu")}
+# формат отчёта института по умолчанию, если в файле не нашлось упоминаний
+DEFAULT_ELEMENTS = [28, 29]
+
+ELEMENT_RE = re.compile(r"(?:элемент|эл)\.?\s*(\d+)", re.I)
 
 SIZE_RE = re.compile(r"^\s*([+-]\s*\d+(?:\s*[+-]\s*\d+)?)\s*(?:мкм)?\s*$", re.I)
+
+
+def _component(num: int) -> dict:
+    """Описание компонента потерь по номеру элемента из отчёта."""
+    alias = ELEMENT_ALIASES.get(num)
+    cid = alias[0] if alias else f"el{num}"
+    label = f"Элемент {num} ({alias[1]})" if alias else f"Элемент {num}"
+    forms = BASE_RECOVERABLE_FORMS | EXTRA_RECOVERABLE_FORMS.get(cid, set())
+    return {"id": cid, "num": num, "label": label, "unit": "т",
+            "recoverable_forms": sorted(forms)}
+
+
+def _discover_components(ws) -> list[dict]:
+    """Компоненты в порядке первого упоминания «Элемент N» / «эл.N» в отчёте."""
+    nums: list[int] = []
+    for row in ws.iter_rows():
+        for c in row:
+            t = _text(c.value)
+            if not t:
+                continue
+            for m in ELEMENT_RE.finditer(t.lower()):
+                n = int(m.group(1))
+                if n not in nums:
+                    nums.append(n)
+    return [_component(n) for n in (nums or DEFAULT_ELEMENTS)]
 
 
 def _num(v):
@@ -74,7 +108,7 @@ def _row_cells(row):
     return out
 
 
-def _header_colmap(cells):
+def _header_colmap(cells, components):
     """По заголовку блока определяем, в каких колонках лежат метрики."""
     colmap = {}
     for col, v in cells:
@@ -84,14 +118,16 @@ def _header_colmap(cells):
         low = t.lower()
         if "доля класса" in low:
             colmap["share"] = col
-        elif "доля" in low and "28" in low:
-            colmap["ni_share"] = col
-        elif "28" in low and "т" in low:
-            colmap["ni_t"] = col
-        elif "доля" in low and "29" in low:
-            colmap["cu_share"] = col
-        elif "29" in low and "т" in low:
-            colmap["cu_t"] = col
+            continue
+        for comp in components:
+            num = str(comp["num"])
+            if num not in low:
+                continue
+            if "доля" in low:
+                colmap[f"{comp['id']}_share"] = col
+            elif "т" in low:
+                colmap[f"{comp['id']}_t"] = col
+            break
     return colmap
 
 
@@ -110,11 +146,25 @@ def parse_workbook(src) -> dict:
     wb = openpyxl.load_workbook(src, data_only=True)
     ws = wb["Итог"] if "Итог" in wb.sheetnames else wb.worksheets[0]
 
+    components = _discover_components(ws)
+    comp_ids = [c["id"] for c in components]
+
+    def _row_metrics(numvals):
+        """Позиционная строка «smt, затем пары (%, т) на компонент»."""
+        out = {"smt": numvals[0]}
+        for i, cid in enumerate(comp_ids):
+            pct = numvals[1 + 2 * i] if len(numvals) > 1 + 2 * i else None
+            t = numvals[2 + 2 * i] if len(numvals) > 2 + 2 * i else None
+            out[f"{cid}_pct"] = pct
+            out[f"{cid}_t"] = t
+        return out
+
     is_path = isinstance(src, (str, Path))
     stem = Path(src).stem if is_path else ""
     result = {
         "source_file": str(src) if is_path else "upload",
         "plant": stem.replace("Хвосты", "").replace("_2", "").strip(),
+        "components": components,
         "feed": {},
         "tailings_fact": None,
         "streams": [],
@@ -137,31 +187,20 @@ def parse_workbook(src) -> dict:
 
         # --- шапка: питание фабрики ---
         if low.startswith("шихта руд") and len(numvals) >= 3:
-            result["feed"]["ore"] = {"smt": numvals[0], "ni_pct": numvals[1],
-                                     "ni_t": numvals[2],
-                                     "cu_pct": numvals[3] if len(numvals) > 3 else None,
-                                     "cu_t": numvals[4] if len(numvals) > 4 else None}
+            result["feed"]["ore"] = _row_metrics(numvals)
             continue
-        if low.startswith("итого") and "feed" in dir() and result["feed"].get("ore") and not result["feed"].get("total") and len(numvals) >= 3 and stream is None and mode is None:
-            result["feed"]["total"] = {"smt": numvals[0], "ni_pct": numvals[1],
-                                       "ni_t": numvals[2],
-                                       "cu_pct": numvals[3] if len(numvals) > 3 else None,
-                                       "cu_t": numvals[4] if len(numvals) > 4 else None}
+        if low.startswith("итого") and result["feed"].get("ore") and not result["feed"].get("total") and len(numvals) >= 3 and stream is None and mode is None:
+            result["feed"]["total"] = _row_metrics(numvals)
             continue
         if low.startswith("отвальные хвосты") and len(numvals) >= 3 and result["tailings_fact"] is None:
-            result["tailings_fact"] = {"smt": numvals[0], "ni_pct": numvals[1],
-                                       "ni_t": numvals[2],
-                                       "cu_pct": numvals[3] if len(numvals) > 3 else None,
-                                       "cu_t": numvals[4] if len(numvals) > 4 else None}
+            result["tailings_fact"] = _row_metrics(numvals)
             continue
 
         # --- новый поток хвостов (нужны тоннаж + содержания) ---
-        if low.startswith("хвосты") and len(numvals) >= 4:
+        if low.startswith("хвосты") and len(numvals) >= max(3, 2 * len(comp_ids)):
             stream = {
                 "name": label,
-                "smt": numvals[0],
-                "ni_pct": numvals[1], "ni_t": numvals[2],
-                "cu_pct": numvals[3], "cu_t": numvals[4] if len(numvals) > 4 else None,
+                **_row_metrics(numvals),
                 "size_classes": [],
                 "totals": {},
             }
@@ -172,7 +211,7 @@ def parse_workbook(src) -> dict:
         # --- заголовок таблицы распределения по классам ---
         if low.startswith("класс крупности"):
             mode = "class_table"
-            colmap = _header_colmap(cells)
+            colmap = _header_colmap(cells, components)
             continue
 
         # --- заголовок блока минеральных форм: '+71 мкм | Доля потерь...' ---
@@ -181,7 +220,7 @@ def parse_workbook(src) -> dict:
         if cc and "доля потерь" in header_texts:
             mode = "form_block"
             cur_class = cc
-            colmap = _header_colmap(cells)
+            colmap = _header_colmap(cells, components)
             if stream is not None and not any(s["cls"] == cc for s in stream["size_classes"]):
                 stream["size_classes"].append({"cls": cc, "forms": {}})
             continue
@@ -200,13 +239,10 @@ def parse_workbook(src) -> dict:
                 if entry is None:
                     entry = {"cls": cc2, "forms": {}}
                     stream["size_classes"].append(entry)
-                entry.update({
-                    "share_pct": _pick(cells, colmap, "share"),
-                    "ni_share_pct": _pick(cells, colmap, "ni_share"),
-                    "ni_t": _pick(cells, colmap, "ni_t"),
-                    "cu_share_pct": _pick(cells, colmap, "cu_share"),
-                    "cu_t": _pick(cells, colmap, "cu_t"),
-                })
+                entry["share_pct"] = _pick(cells, colmap, "share")
+                for cid in comp_ids:
+                    entry[f"{cid}_share_pct"] = _pick(cells, colmap, f"{cid}_share")
+                    entry[f"{cid}_t"] = _pick(cells, colmap, f"{cid}_t")
             continue
 
         # --- строки блока форм ---
@@ -216,23 +252,17 @@ def parse_workbook(src) -> dict:
                 continue
             if low.startswith("итого"):
                 continue
+            metrics = {}
+            for cid in comp_ids:
+                metrics[f"{cid}_share_pct"] = _pick(cells, colmap, f"{cid}_share")
+                metrics[f"{cid}_t"] = _pick(cells, colmap, f"{cid}_t")
             if low.startswith("извлекаемый") or low.startswith("не извлекаемый"):
                 key = "recoverable" if low.startswith("извлекаемый") else "non_recoverable"
-                entry[key] = {
-                    "ni_share_pct": _pick(cells, colmap, "ni_share"),
-                    "ni_t": _pick(cells, colmap, "ni_t"),
-                    "cu_share_pct": _pick(cells, colmap, "cu_share"),
-                    "cu_t": _pick(cells, colmap, "cu_t"),
-                }
+                entry[key] = metrics
                 continue
             form = canon_form(label)
             if form:
-                entry["forms"][form] = {
-                    "ni_share_pct": _pick(cells, colmap, "ni_share"),
-                    "ni_t": _pick(cells, colmap, "ni_t"),
-                    "cu_share_pct": _pick(cells, colmap, "cu_share"),
-                    "cu_t": _pick(cells, colmap, "cu_t"),
-                }
+                entry["forms"][form] = metrics
             continue
 
     _postprocess(result)
@@ -241,6 +271,7 @@ def parse_workbook(src) -> dict:
 
 def _postprocess(result: dict):
     """Достраиваем извлекаемый металл там, где в отчёте #REF!/пусто, и итоги."""
+    components = result["components"]
     # сводный блок (сумма остальных потоков) помечаем, чтобы не задваивать
     for i, stream in enumerate(result["streams"]):
         prev_smt = sum(s["smt"] or 0 for s in result["streams"][:i])
@@ -248,17 +279,19 @@ def _postprocess(result: dict):
             i >= 2 and prev_smt and abs((stream["smt"] or 0) - prev_smt) / prev_smt < 0.01)
 
     for stream in result["streams"]:
-        tot = {"ni_t": 0.0, "cu_t": 0.0, "rec_ni_t": 0.0, "rec_cu_t": 0.0}
+        tot = {c["id"]: 0.0 for c in components}
+        rec_tot = {c["id"]: 0.0 for c in components}
         for entry in stream["size_classes"]:
             # если 'Извлекаемый металл' битый — считаем сами из форм
-            for el in ("ni", "cu"):
+            for comp in components:
+                el = comp["id"]
                 rec = entry.get("recoverable", {}) or {}
                 if rec.get(f"{el}_t") is None and entry["forms"]:
                     s = 0.0
                     have = False
                     for form, vals in entry["forms"].items():
                         v = vals.get(f"{el}_t")
-                        if v is not None and form in RECOVERABLE_FORMS[el]:
+                        if v is not None and form in comp["recoverable_forms"]:
                             s += v
                             have = True
                     if have:
@@ -268,23 +301,23 @@ def _postprocess(result: dict):
                             f"{stream['name']} / {entry['cls']}: извлекаемый {el} "
                             f"восстановлен из форм (в отчёте нет данных)")
             # если тонны потерь класса нет, но есть формы — суммируем
-            for el in ("ni", "cu"):
+            for comp in components:
+                el = comp["id"]
                 if entry.get(f"{el}_t") is None and entry["forms"]:
                     vals = [v.get(f"{el}_t") for v in entry["forms"].values()
                             if v.get(f"{el}_t") is not None]
                     if vals:
                         entry[f"{el}_t"] = round(sum(vals), 2)
-            tot["ni_t"] += entry.get("ni_t") or 0.0
-            tot["cu_t"] += entry.get("cu_t") or 0.0
             rec = entry.get("recoverable", {}) or {}
-            tot["rec_ni_t"] += rec.get("ni_t") or 0.0
-            tot["rec_cu_t"] += rec.get("cu_t") or 0.0
-        stream["totals"] = {
-            "ni_t": round(tot["ni_t"], 1),
-            "cu_t": round(tot["cu_t"], 1),
-            "recoverable_ni_t": round(tot["rec_ni_t"], 1),
-            "recoverable_cu_t": round(tot["rec_cu_t"], 1),
-        }
+            for comp in components:
+                el = comp["id"]
+                tot[el] += entry.get(f"{el}_t") or 0.0
+                rec_tot[el] += rec.get(f"{el}_t") or 0.0
+        stream["totals"] = {}
+        for comp in components:
+            el = comp["id"]
+            stream["totals"][f"{el}_t"] = round(tot[el], 1)
+            stream["totals"][f"recoverable_{el}_t"] = round(rec_tot[el], 1)
 
 
 def main():

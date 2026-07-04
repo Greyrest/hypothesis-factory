@@ -150,7 +150,9 @@ def _get(plant: str) -> dict:
 
 
 def _diagnosis_of(result: dict) -> dict:
-    return {k: result[k] for k in ("plant", "summary", "findings", "cells")}
+    d = {k: result[k] for k in ("plant", "summary", "findings", "cells")}
+    d["components"] = result.get("components", [])
+    return d
 
 
 @app.get("/api/v1/health")

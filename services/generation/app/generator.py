@@ -96,13 +96,29 @@ SIGNAL_CELLS = {
 }
 
 
+def comp_ids(diagnosis: dict) -> list[str]:
+    """id компонентов результата; для старых JSON — из ячеек отчёта."""
+    comps = diagnosis.get("components")
+    if comps:
+        return [c["id"] for c in comps]
+    seen: list[str] = []
+    for cell in diagnosis.get("cells", []):
+        if cell["el"] not in seen:
+            seen.append(cell["el"])
+    return seen
+
+
+def _kpi_delta(tons: dict, lo: float, hi: float) -> dict:
+    return {el: [round(t * lo, 1), round(t * hi, 1)] for el, t in tons.items()}
+
+
 def _addressable(diagnosis: dict, signals: list[str]) -> dict:
     """Адресуемый металл = объединение ячеек отчёта по сигналам (без задвоений)."""
     preds = [SIGNAL_CELLS[s] for s in signals if s in SIGNAL_CELLS]
-    out = {"ni": 0.0, "cu": 0.0}
+    out = {el: 0.0 for el in comp_ids(diagnosis)}
     for cell in diagnosis["cells"]:
         if any(p(cell) for p in preds):
-            out[cell["el"]] += cell["tons"]
+            out[cell["el"]] = out.get(cell["el"], 0.0) + cell["tons"]
     used = [f for f in diagnosis["findings"]
             if not f.get("informational") and f["signal"] in signals]
     return {"tons": out, "findings": used}
@@ -115,7 +131,7 @@ def rule_based_generate(diagnosis: dict, kb: dict, feedback: dict | None = None)
 
     for entry in kb["catalog"]:
         match = _addressable(diagnosis, entry["signals"])
-        total_t = match["tons"]["ni"] + match["tons"]["cu"]
+        total_t = sum(match["tons"].values())
         if total_t < 30:
             continue
 
@@ -159,10 +175,7 @@ def rule_based_generate(diagnosis: dict, kb: dict, feedback: dict | None = None)
             "expected_effect": {
                 "addressable_t": {k: round(v, 1) for k, v in match["tons"].items()},
                 "uplift_pct": [int(lo * 100), int(hi * 100)],
-                "kpi_delta_t": {
-                    "ni": [round(match["tons"]["ni"] * lo, 1), round(match["tons"]["ni"] * hi, 1)],
-                    "cu": [round(match["tons"]["cu"] * lo, 1), round(match["tons"]["cu"] * hi, 1)],
-                },
+                "kpi_delta_t": _kpi_delta(match["tons"], lo, hi),
                 "kpi": "Снижение потерь металла с отвальными хвостами, т/период",
                 "assumption": (
                     f"Допущение: мероприятие категории «{CATEGORY_RU[cat]}» устраняет "
@@ -197,7 +210,7 @@ def rule_based_generate(diagnosis: dict, kb: dict, feedback: dict | None = None)
     for sig, (title, cat) in gap_templates.items():
         if sig in active_signals and sig not in covered:
             match = _addressable(diagnosis, [sig])
-            total_t = match["tons"]["ni"] + match["tons"]["cu"]
+            total_t = sum(match["tons"].values())
             if total_t < 30:
                 continue
             lo, hi = UPLIFT[cat]
@@ -215,9 +228,7 @@ def rule_based_generate(diagnosis: dict, kb: dict, feedback: dict | None = None)
                 "expected_effect": {
                     "addressable_t": {k: round(v, 1) for k, v in match["tons"].items()},
                     "uplift_pct": [int(lo * 100), int(hi * 100)],
-                    "kpi_delta_t": {
-                        "ni": [round(match["tons"]["ni"] * lo, 1), round(match["tons"]["ni"] * hi, 1)],
-                        "cu": [round(match["tons"]["cu"] * lo, 1), round(match["tons"]["cu"] * hi, 1)]},
+                    "kpi_delta_t": _kpi_delta(match["tons"], lo, hi),
                     "kpi": "Снижение потерь металла с отвальными хвостами, т/период",
                     "assumption": "Оценка по аналогии с мероприятиями той же категории."},
                 "scores": {"feasibility": 3, "novelty": 4, "risk": 3,
@@ -307,6 +318,7 @@ def merge_llm_items(diagnosis: dict, drafts: list[dict], items: list[dict],
                                risk=it["risk"])
         else:
             cat = it["category"]
+            ids = comp_ids(diagnosis)
             h = {
                 "id": f"{diagnosis['plant']}-llm-{len(result)}",
                 "title": it["title"], "hypothesis": it["hypothesis"],
@@ -316,9 +328,9 @@ def merge_llm_items(diagnosis: dict, drafts: list[dict], items: list[dict],
                 "evidence": [{"source": f"Обоснование LLM ({model_label}, по данным отчёта)",
                               "fact": it["rationale"]}],
                 "expected_effect": {
-                    "addressable_t": {"ni": 0, "cu": 0},
+                    "addressable_t": {el: 0 for el in ids},
                     "uplift_pct": list(UPLIFT.get(cat, (0.05, 0.15))),
-                    "kpi_delta_t": {"ni": [0, 0], "cu": [0, 0]},
+                    "kpi_delta_t": {el: [0, 0] for el in ids},
                     "kpi": "Снижение потерь металла с отвальными хвостами",
                     "assumption": "Количественная оценка требует испытаний."},
                 "scores": {"feasibility": it["feasibility"], "novelty": it["novelty"],
@@ -360,6 +372,7 @@ def generate(diagnosis: dict, kb: dict, use_llm: bool = True,
         "plant": diagnosis["plant"],
         "engine": used,
         "project": project,
+        "components": diagnosis.get("components", []),
         "summary": diagnosis["summary"],
         "hypotheses": drafts[:12],
         "findings": diagnosis["findings"],

@@ -1,5 +1,6 @@
 """Общие контракты «Фабрики гипотез»: формы данных, которыми обмениваются сервисы."""
 from .models import (
+    Component,
     Evidence,
     ExpectedEffect,
     Finding,
@@ -10,6 +11,7 @@ from .models import (
 )
 
 __all__ = [
+    "Component",
     "Evidence",
     "ExpectedEffect",
     "Finding",

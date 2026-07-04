@@ -12,6 +12,17 @@ class _Open(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class Component(_Open):
+    """Компонент потерь (элемент/минерал), извлечённый ingestion из отчёта.
+
+    Конвейер не знает конкретных металлов: везде дальше используются id
+    компонентов и словари, ключованные этими id."""
+    id: str
+    label: str
+    unit: str = "т"
+    recoverable_forms: list[str] = []
+
+
 class Evidence(_Open):
     source: str
     fact: str
@@ -72,17 +83,18 @@ class Finding(_Open):
 
 
 class Summary(_Open):
-    losses_ni_t: float
-    losses_cu_t: float
-    recoverable_ni_t: float
-    recoverable_cu_t: float
-    recoverable_ni_pct: float
-    recoverable_cu_pct: float
+    """Сводка потерь: словари по id компонента. Плоские алиасы вида
+    losses_<id>_t добавляются диагностикой для обратной совместимости
+    (их читает фронтенд) и проходят через extra="allow"."""
+    losses_t: dict[str, float] = {}
+    recoverable_t: dict[str, float] = {}
+    recoverable_pct: dict[str, float] = {}
 
 
 class PlantResult(_Open):
     plant: str
     engine: str
+    components: list[Component] = []
     summary: Summary
     hypotheses: list[Hypothesis]
     findings: list[Finding]

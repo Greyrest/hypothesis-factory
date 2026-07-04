@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-from .generator import CATEGORY_RU, RISKS, ROADMAP, UPLIFT, _addressable
+from .generator import CATEGORY_RU, RISKS, ROADMAP, UPLIFT, _addressable, _kpi_delta
 from .retrieval import retrieve
 
 # терминология -> категория (порядок важен: частные раньше общих)
@@ -56,7 +56,7 @@ def analyze_hypothesis(diagnosis: dict, kb: dict, text: str,
     lo, hi = UPLIFT[cat]
 
     match = _addressable(diagnosis, signals)
-    total_t = match["tons"]["ni"] + match["tons"]["cu"]
+    total_t = sum(match["tons"].values())
     top_f = sorted(match["findings"], key=lambda f: -f["tons"])[:3]
 
     # обоснование: цифры отчёта + retrieval по терминам гипотезы
@@ -89,10 +89,7 @@ def analyze_hypothesis(diagnosis: dict, kb: dict, text: str,
         "expected_effect": {
             "addressable_t": {k: round(v, 1) for k, v in match["tons"].items()},
             "uplift_pct": [int(lo * 100), int(hi * 100)],
-            "kpi_delta_t": {
-                "ni": [round(match["tons"]["ni"] * lo, 1), round(match["tons"]["ni"] * hi, 1)],
-                "cu": [round(match["tons"]["cu"] * lo, 1), round(match["tons"]["cu"] * hi, 1)],
-            },
+            "kpi_delta_t": _kpi_delta(match["tons"], lo, hi),
             "kpi": "Снижение потерь металла с отвальными хвостами, т/период",
             "assumption": assumption,
         },

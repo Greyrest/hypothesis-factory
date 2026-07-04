@@ -8,27 +8,28 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-def build_xlsx() -> bytes:
+def build_xlsx(el_a: str = "28", el_b: str = "29") -> bytes:
     """Синтетический отчёт: поток, таблица классов, блоки форм.
-    'Извлекаемый металл' намеренно отсутствует — как #REF! в реальном отчёте."""
+    'Извлекаемый металл' намеренно отсутствует — как #REF! в реальном отчёте.
+    Номера элементов параметризованы: конвейер не завязан на ni/cu."""
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Итог"
     rows = [
         ["Хвосты породные", 1000, 0.5, 5000, 0.3, 3000],
-        ["Класс крупности", "Доля класса, %", "Доля потерь эл.28, %",
-         "эл.28, т", "Доля потерь эл.29, %", "эл.29, т"],
+        ["Класс крупности", "Доля класса, %", f"Доля потерь эл.{el_a}, %",
+         f"эл.{el_a}, т", f"Доля потерь эл.{el_b}, %", f"эл.{el_b}, т"],
         ["+71 мкм", 30, 40, 2000, 30, 900],
         ["-45 +20 мкм", 40, 30, 1500, 40, 1200],
         ["-10", 30, 30, 1500, 30, 900],
         ["Итого", 100, 100, 5000, 100, 3000],
-        ["+71 мкм", "Доля потерь эл.28, %", "эл.28, т",
-         "Доля потерь эл.29, %", "эл.29, т"],
+        ["+71 мкм", f"Доля потерь эл.{el_a}, %", f"эл.{el_a}, т",
+         f"Доля потерь эл.{el_b}, %", f"эл.{el_b}, т"],
         ["Раскрытый Pnt/Cp", 10, 200, 10, 90],
         ["Закрытый Pnt/Cp", 80, 1600, 70, 630],
         ["Примесь в пирротине", 10, 200, 20, 180],
-        ["-10 мкм", "Доля потерь эл.28, %", "эл.28, т",
-         "Доля потерь эл.29, %", "эл.29, т"],
+        ["-10 мкм", f"Доля потерь эл.{el_a}, %", f"эл.{el_a}, т",
+         f"Доля потерь эл.{el_b}, %", f"эл.{el_b}, т"],
         ["Раскрытый Pnt/Cp", 80, 1200, 80, 720],
         ["Примесь в пирротине", 20, 300, 20, 180],
     ]
@@ -41,12 +42,28 @@ def build_xlsx() -> bytes:
 
 def test_parse_from_memory(ing):
     parsed = ing["core"].parse_workbook(io.BytesIO(build_xlsx()))
+    # компоненты открыты из заголовков отчёта, известные номера получают id
+    assert [c["id"] for c in parsed["components"]] == ["ni", "cu"]
     assert len(parsed["streams"]) == 1
     stream = parsed["streams"][0]
     assert stream["ni_t"] == 5000
     classes = {c["cls"]: c for c in stream["size_classes"]}
     assert set(classes) == {"+71", "-45+20", "-10"}
     assert classes["+71"]["forms"]["Закрытый Pnt/Cp"]["ni_t"] == 1600
+
+
+def test_parse_arbitrary_elements(ing):
+    """Отчёт с другими элементами (эл.27/эл.34) разбирается без правок кода."""
+    parsed = ing["core"].parse_workbook(io.BytesIO(build_xlsx("27", "34")))
+    ids = [c["id"] for c in parsed["components"]]
+    assert ids == ["el27", "el34"]
+    stream = parsed["streams"][0]
+    assert stream["el27_t"] == 5000
+    classes = {c["cls"]: c for c in stream["size_classes"]}
+    assert classes["+71"]["forms"]["Закрытый Pnt/Cp"]["el27_t"] == 1600
+    # извлекаемое восстановлено из форм по базовому набору извлекаемых форм
+    assert classes["+71"]["recoverable"]["el27_t"] == 1800
+    assert stream["totals"]["recoverable_el34_t"] > 0
 
 
 def test_recoverable_restored_from_forms(ing):

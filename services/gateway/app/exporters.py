@@ -9,27 +9,42 @@ import io
 import json
 
 
+def _components(result: dict) -> list[dict]:
+    """Компоненты результата; для старых снапшотов — из ключей summary."""
+    comps = result.get("components")
+    if comps:
+        return comps
+    ids = sorted(result.get("summary", {}).get("losses_t", {}))
+    return [{"id": i, "label": i} for i in ids]
+
+
 def to_json(result: dict) -> str:
     return json.dumps(result, ensure_ascii=False, indent=2)
 
 
 def to_csv(result: dict) -> str:
+    comps = _components(result)
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";")
+    comp_cols = [col for c in comps
+                 for col in (f"addressable_{c['id']}_t",
+                             f"kpi_delta_{c['id']}_t_min",
+                             f"kpi_delta_{c['id']}_t_max")]
     w.writerow(["rank", "priority", "title", "category", "hypothesis",
-                "addressable_ni_t", "addressable_cu_t",
-                "kpi_delta_ni_t_min", "kpi_delta_ni_t_max",
-                "kpi_delta_cu_t_min", "kpi_delta_cu_t_max",
+                *comp_cols,
                 "feasibility_1_5", "novelty_1_5", "risk_1_5",
                 "status", "streams", "sources"])
     for h in result["hypotheses"]:
         eff = h["expected_effect"]
+        comp_vals = []
+        for c in comps:
+            delta = eff["kpi_delta_t"].get(c["id"], [0, 0])
+            comp_vals += [eff["addressable_t"].get(c["id"], 0),
+                          delta[0], delta[1]]
         w.writerow([
             h["rank"], h["scores"]["priority"], h["title"], h["category_ru"],
             h["hypothesis"],
-            eff["addressable_t"]["ni"], eff["addressable_t"]["cu"],
-            eff["kpi_delta_t"]["ni"][0], eff["kpi_delta_t"]["ni"][1],
-            eff["kpi_delta_t"]["cu"][0], eff["kpi_delta_t"]["cu"][1],
+            *comp_vals,
             h["scores"]["feasibility"], h["scores"]["novelty"],
             h["scores"]["risk"], h["status"],
             "; ".join(h["streams"]), "; ".join(h["sources"]),
@@ -40,6 +55,11 @@ def to_csv(result: dict) -> str:
 def to_markdown(result: dict) -> str:
     fmt = lambda v: f"{v:,.0f}".replace(",", " ")
     s = result["summary"]
+    comps = _components(result)
+    ids = [c["id"] for c in comps]
+    losses = s.get("losses_t") or {i: s.get(f"losses_{i}_t", 0) for i in ids}
+    recov = s.get("recoverable_t") or {i: s.get(f"recoverable_{i}_t", 0) for i in ids}
+    rec_pct = s.get("recoverable_pct") or {i: s.get(f"recoverable_{i}_pct", 0) for i in ids}
     lines = [
         f"# Гипотезы снижения потерь металлов — {result['plant']}",
         "",
@@ -54,11 +74,11 @@ def to_markdown(result: dict) -> str:
     lines += [
         "## Сводка потерь",
         "",
-        f"| Показатель | Ni (эл. 28) | Cu (эл. 29) |",
-        f"|---|---|---|",
-        f"| Потери с хвостами, т | {fmt(s['losses_ni_t'])} | {fmt(s['losses_cu_t'])} |",
-        f"| Извлекаемый металл, т | {fmt(s['recoverable_ni_t'])} | {fmt(s['recoverable_cu_t'])} |",
-        f"| Доля извлекаемого, % | {s['recoverable_ni_pct']} | {s['recoverable_cu_pct']} |",
+        "| Показатель | " + " | ".join(c["label"] for c in comps) + " |",
+        "|---|" + "---|" * len(comps),
+        "| Потери с хвостами, т | " + " | ".join(fmt(losses.get(i, 0)) for i in ids) + " |",
+        "| Извлекаемый металл, т | " + " | ".join(fmt(recov.get(i, 0)) for i in ids) + " |",
+        "| Доля извлекаемого, % | " + " | ".join(str(rec_pct.get(i, 0)) for i in ids) + " |",
         "",
         "## Ключевые находки диагностики",
         "",
@@ -87,10 +107,12 @@ def to_markdown(result: dict) -> str:
         ]
         for e in h["evidence"]:
             lines.append(f"- {e['fact']}  \n  *— {e['source']}*")
+        delta_line = ", ".join(
+            f"{c['label']} −{eff['kpi_delta_t'].get(c['id'], [0, 0])[0]:.0f}…"
+            f"{eff['kpi_delta_t'].get(c['id'], [0, 0])[1]:.0f} т" for c in comps)
         lines += [
             "",
-            f"**Ожидаемый KPI.** {eff['kpi']}: Ni −{eff['kpi_delta_t']['ni'][0]:.0f}…{eff['kpi_delta_t']['ni'][1]:.0f} т, "
-            f"Cu −{eff['kpi_delta_t']['cu'][0]:.0f}…{eff['kpi_delta_t']['cu'][1]:.0f} т. {eff['assumption']}",
+            f"**Ожидаемый KPI.** {eff['kpi']}: {delta_line}. {eff['assumption']}",
             "",
             "**Риски:** " + "; ".join(h["risks"]),
             "",
@@ -116,14 +138,19 @@ def to_docx(result: dict) -> bytes:
             doc.add_paragraph("Ограничения: " + "; ".join(proj["constraints"]))
 
     s = result["summary"]
+    comps = _components(result)
+    ids = [c["id"] for c in comps]
+    losses = s.get("losses_t") or {i: s.get(f"losses_{i}_t", 0) for i in ids}
+    recov = s.get("recoverable_t") or {i: s.get(f"recoverable_{i}_t", 0) for i in ids}
+    rec_pct = s.get("recoverable_pct") or {i: s.get(f"recoverable_{i}_pct", 0) for i in ids}
     doc.add_heading("Сводка потерь", level=1)
-    table = doc.add_table(rows=4, cols=3)
+    table = doc.add_table(rows=4, cols=1 + len(comps))
     table.style = "Table Grid"
     rows = [
-        ("Показатель", "Ni (эл. 28)", "Cu (эл. 29)"),
-        ("Потери с хвостами, т", f"{s['losses_ni_t']:,.0f}", f"{s['losses_cu_t']:,.0f}"),
-        ("Извлекаемый металл, т", f"{s['recoverable_ni_t']:,.0f}", f"{s['recoverable_cu_t']:,.0f}"),
-        ("Доля извлекаемого, %", str(s["recoverable_ni_pct"]), str(s["recoverable_cu_pct"])),
+        ("Показатель", *(c["label"] for c in comps)),
+        ("Потери с хвостами, т", *(f"{losses.get(i, 0):,.0f}" for i in ids)),
+        ("Извлекаемый металл, т", *(f"{recov.get(i, 0):,.0f}" for i in ids)),
+        ("Доля извлекаемого, %", *(str(rec_pct.get(i, 0)) for i in ids)),
     ]
     for i, row in enumerate(rows):
         for j, val in enumerate(row):
@@ -151,11 +178,10 @@ def to_docx(result: dict) -> bytes:
         doc.add_paragraph("Обоснование и источники:")
         for e in h["evidence"]:
             doc.add_paragraph(f"{e['fact']} — {e['source']}", style="List Bullet")
-        doc.add_paragraph(
-            f"Ожидаемый KPI: Ni −{eff['kpi_delta_t']['ni'][0]:.0f}…"
-            f"{eff['kpi_delta_t']['ni'][1]:.0f} т, "
-            f"Cu −{eff['kpi_delta_t']['cu'][0]:.0f}…"
-            f"{eff['kpi_delta_t']['cu'][1]:.0f} т. {eff['assumption']}")
+        delta_line = ", ".join(
+            f"{c['label']} −{eff['kpi_delta_t'].get(c['id'], [0, 0])[0]:.0f}…"
+            f"{eff['kpi_delta_t'].get(c['id'], [0, 0])[1]:.0f} т" for c in comps)
+        doc.add_paragraph(f"Ожидаемый KPI: {delta_line}. {eff['assumption']}")
         doc.add_paragraph("Риски: " + "; ".join(h["risks"]))
         doc.add_paragraph("Дорожная карта проверки:")
         for i, step in enumerate(h["roadmap"], 1):
