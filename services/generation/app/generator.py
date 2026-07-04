@@ -323,7 +323,11 @@ def merge_llm_items(diagnosis: dict, drafts: list[dict], items: list[dict],
 
 
 def generate(diagnosis: dict, kb: dict, use_llm: bool = True,
-             feedback: dict | None = None) -> dict:
+             feedback: dict | None = None,
+             project: dict | None = None) -> dict:
+    if project:
+        # KPI и ограничения пользователя попадают в контекст LLM-усиления
+        diagnosis["project"] = project
     drafts = rule_based_generate(diagnosis, kb, feedback)
     used = "rule-based"
     if use_llm:
@@ -336,6 +340,7 @@ def generate(diagnosis: dict, kb: dict, use_llm: bool = True,
     return {
         "plant": diagnosis["plant"],
         "engine": used,
+        "project": project,
         "summary": diagnosis["summary"],
         "hypotheses": drafts[:12],
         "findings": diagnosis["findings"],

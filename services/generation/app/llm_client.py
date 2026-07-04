@@ -12,8 +12,11 @@ def llm_enhance_remote(diagnosis: dict, drafts: list[dict],
                        kb: dict) -> tuple[list[dict] | None, str]:
     """-> (items | None, подпись модели). None => остаёмся на rule-based."""
     try:
+        diag = {k: diagnosis[k] for k in ("plant", "summary", "findings")}
+        if diagnosis.get("project"):
+            diag["project"] = diagnosis["project"]
         r = httpx.post(f"{LLM_URL}/api/v1/enhance", json={
-            "diagnosis": {k: diagnosis[k] for k in ("plant", "summary", "findings")},
+            "diagnosis": diag,
             "drafts": drafts,
             "catalog": kb.get("catalog", []),
             "rules": kb.get("rules", []),

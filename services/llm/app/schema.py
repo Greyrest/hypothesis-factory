@@ -56,7 +56,15 @@ SYSTEM_PROMPT = (
 def build_context(diagnosis: dict, drafts: list[dict], catalog: list[dict],
                   rules: list[dict]) -> dict:
     """Компактный контекст для модели из диагностики, черновиков и базы знаний."""
+    ctx_project = {}
+    if diagnosis.get("project"):
+        p = diagnosis["project"]
+        ctx_project = {"задача_пользователя": {
+            "целевой_KPI": p.get("target_kpi"),
+            "ограничения": p.get("constraints", []),
+        }}
     return {
+        **ctx_project,
         "диагностика": {
             "фабрика": diagnosis["plant"],
             "сводка": diagnosis["summary"],

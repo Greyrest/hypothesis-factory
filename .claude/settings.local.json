@@ -29,7 +29,13 @@
       "Bash(curl -s -o /dev/null -w 'frontend :8088 -> %{http_code}\\\\n' http://localhost:8088/)",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('gateway:', d['status'], '| downstream:', {k: v['status'] for k,v in d['downstream'].items\\(\\)}\\)\")",
       "Bash(curl -s -X POST \"http://localhost:8000/api/v1/runs?use_llm=false\")",
-      "Bash(curl -s -o /dev/null -w '%{http_code}' http://localhost:8088/app.js)"
+      "Bash(curl -s -o /dev/null -w '%{http_code}' http://localhost:8088/app.js)",
+      "Bash(docker compose *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\({k: v['status'] for k,v in d['downstream'].items\\(\\)}\\)\")",
+      "Bash(curl -s -X POST \"http://localhost:8000/api/v1/runs?use_llm=false\" -H 'Content-Type: application/json' -d '{\"target_kpi\":\"снизить потери Ni и Cu в хвостах\",\"constraints\":[\"не менять основную схему фабрики\",\"без крупного CAPEX\"]}')",
+      "Bash(python3 -c 'import json,sys; d=json.load\\(sys.stdin\\); print\\(\"runs ok, plants:\", d[\"plants\"]\\)')",
+      "Bash(curl -s -X POST \"http://localhost:8000/api/v1/plants/ТОФ/hypotheses\" -H 'Content-Type: application/json' -d '{\"text\":\"Если установить дополнительный контактный чан перед контрольной флотацией и увеличить время флотации на 15%, то потери раскрытого металла в классах -45+10 мкм снизятся на 8-12%\"}')",
+      "Bash(curl -s -o /dev/null -w 'frontend app.js: %{http_code}\\\\n' http://localhost:8088/app.js)"
     ]
   }
 }

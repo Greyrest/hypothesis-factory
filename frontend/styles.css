@@ -9,8 +9,15 @@ body { margin: 0; background: var(--bg); color: var(--text);
 header { padding: 20px 28px 12px; border-bottom: 1px solid var(--border); }
 h1 { margin: 0; font-size: 22px; }
 .sub { margin: 4px 0 10px; color: var(--muted); }
-.toolbar { display: flex; gap: 14px; align-items: center; }
-.toolbar label { color: var(--muted); }
+.project-form { display: flex; flex-direction: column; gap: 8px; max-width: 900px; }
+.pf-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.pf-row input[type="text"], .pf-row textarea, .pf-row select,
+.add-hyp input[type="text"], .add-hyp textarea {
+  flex: 1; background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+  font: inherit; min-width: 220px; }
+.llm-label { color: var(--muted); white-space: nowrap; }
+.or { color: var(--muted); }
 button { background: var(--accent); color: #06121f; border: 0; border-radius: 8px;
   padding: 8px 16px; font-weight: 600; cursor: pointer; }
 button:disabled { opacity: .5; cursor: wait; }
@@ -38,6 +45,20 @@ h2 { margin: 26px 0 10px; font-size: 18px; }
   border-radius: 999px; padding: 2px 10px; margin: 2px 6px 2px 0; font-size: 12px;
   color: var(--muted); }
 .badge.llm { color: #ffd166; }
+.badge.expert { color: #38c172; }
+.badge.ok { color: var(--good); border-color: var(--good); }
+.badge.bad { color: var(--bad); border-color: var(--bad); }
+.hyp.rejected { opacity: .45; }
+button.ghost.ok { color: var(--good); }
+button.ghost.bad { color: var(--bad); }
+.project-info { background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 16px; margin: 10px 0; color: var(--muted); }
+.add-hyp { background: var(--panel2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 20px; margin: 12px 0;
+  display: flex; flex-direction: column; gap: 8px; }
+.add-hyp h3 { margin: 0; }
+.graph-tools { display: flex; gap: 8px; align-items: center; margin: 8px 0;
+  flex-wrap: wrap; }
 .hyp .statement { font-style: italic; margin: 8px 0; }
 .hyp details { margin: 6px 0; }
 .hyp summary { cursor: pointer; color: var(--accent); }

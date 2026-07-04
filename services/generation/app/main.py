@@ -12,6 +12,7 @@ import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from .analyze import analyze_hypothesis
 from .diagnosis import diagnose
 from .generator import generate, rank
 
@@ -34,6 +35,16 @@ class GenerateRequest(BaseModel):
     parsed: dict
     use_llm: bool = True
     feedback: dict | None = None
+    project: dict | None = None  # {"target_kpi": str, "constraints": [str]}
+
+
+class AnalyzeRequest(BaseModel):
+    """Произвольная гипотеза эксперта поверх готовой диагностики."""
+    diagnosis: dict  # plant, summary, findings, cells
+    text: str
+    title: str | None = None
+    category: str | None = None
+    seq: int = 0
 
 
 class RerankRequest(BaseModel):
@@ -64,7 +75,16 @@ def diagnose_endpoint(req: DiagnoseRequest) -> dict:
 def generate_endpoint(req: GenerateRequest) -> dict:
     kb = _fetch_kb()
     diagnosis = diagnose(req.parsed)
-    return generate(diagnosis, kb, use_llm=req.use_llm, feedback=req.feedback)
+    return generate(diagnosis, kb, use_llm=req.use_llm, feedback=req.feedback,
+                    project=req.project)
+
+
+@app.post("/api/v1/analyze")
+def analyze_endpoint(req: AnalyzeRequest) -> dict:
+    kb = _fetch_kb()
+    return analyze_hypothesis(req.diagnosis, kb, req.text,
+                              title=req.title, category=req.category,
+                              seq=req.seq)
 
 
 @app.post("/api/v1/rerank")

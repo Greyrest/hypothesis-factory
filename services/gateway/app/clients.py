@@ -22,9 +22,21 @@ def parse_xlsx(filename: str, content: bytes) -> dict:
     return r.json()
 
 
-def generate(parsed: dict, use_llm: bool, feedback: dict | None) -> dict:
+def generate(parsed: dict, use_llm: bool, feedback: dict | None,
+             project: dict | None = None) -> dict:
     r = httpx.post(f"{GENERATION_URL}/api/v1/generate",
-                   json={"parsed": parsed, "use_llm": use_llm, "feedback": feedback},
+                   json={"parsed": parsed, "use_llm": use_llm,
+                         "feedback": feedback, "project": project},
+                   timeout=TIMEOUT)
+    r.raise_for_status()
+    return r.json()
+
+
+def analyze_hypothesis(diagnosis: dict, text: str, title: str | None,
+                       category: str | None, seq: int) -> dict:
+    r = httpx.post(f"{GENERATION_URL}/api/v1/analyze",
+                   json={"diagnosis": diagnosis, "text": text, "title": title,
+                         "category": category, "seq": seq},
                    timeout=TIMEOUT)
     r.raise_for_status()
     return r.json()

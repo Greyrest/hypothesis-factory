@@ -11,18 +11,32 @@
 <header>
   <h1>⚙️ Фабрика гипотез</h1>
   <p class="sub">Снижение потерь Ni/Cu с хвостами флотации — гипотезы, обоснование, приоритеты</p>
-  <div class="toolbar">
-    <label><input type="checkbox" id="use-llm" checked> LLM-усиление</label>
-    <button id="run-btn">▶ Запустить конвейер</button>
-    <span id="run-status"></span>
+
+  <div class="project-form">
+    <div class="pf-row">
+      <input id="kpi-input" type="text"
+             placeholder="Целевой KPI (например: снизить потери Ni и Cu в хвостах на 10%)">
+      <label class="llm-label"><input type="checkbox" id="use-llm" checked> LLM</label>
+    </div>
+    <div class="pf-row">
+      <textarea id="constraints-input" rows="2"
+        placeholder="Ограничения — по одному в строке (например: не менять основную схему фабрики; без крупного CAPEX)"></textarea>
+    </div>
+    <div class="pf-row">
+      <button id="run-btn">▶ Прогнать все отчёты из каталога</button>
+      <span class="or">или свой отчёт:</span>
+      <input type="file" id="file-input" accept=".xlsx">
+      <button id="upload-btn" class="ghost">Загрузить и обработать</button>
+      <span id="run-status"></span>
+    </div>
   </div>
 </header>
 
 <nav id="tabs"></nav>
 
 <main id="content">
-  <p class="empty">Нет результатов. Нажмите «Запустить конвейер» — gateway обойдёт
-  отчёты из каталога данных (ingestion → generation → llm) и вернёт гипотезы.</p>
+  <p class="empty">Нет результатов. Задайте KPI/ограничения (опционально) и запустите
+  конвейер — gateway обойдёт отчёты (ingestion → generation → llm) и вернёт гипотезы.</p>
 </main>
 
 <script src="app.js"></script>

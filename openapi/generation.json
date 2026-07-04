@@ -106,6 +106,46 @@
         }
       }
     },
+    "/api/v1/analyze": {
+      "post": {
+        "summary": "Analyze Endpoint",
+        "operationId": "analyze_endpoint_api_v1_analyze_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyzeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Analyze Endpoint Api V1 Analyze Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/rerank": {
       "post": {
         "summary": "Rerank Endpoint",
@@ -152,6 +192,53 @@
   },
   "components": {
     "schemas": {
+      "AnalyzeRequest": {
+        "properties": {
+          "diagnosis": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Diagnosis"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "diagnosis",
+          "text"
+        ],
+        "title": "AnalyzeRequest",
+        "description": "Произвольная гипотеза эксперта поверх готовой диагностики."
+      },
       "DiagnoseRequest": {
         "properties": {
           "parsed": {
@@ -189,6 +276,18 @@
               }
             ],
             "title": "Feedback"
+          },
+          "project": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project"
           }
         },
         "type": "object",

@@ -3,7 +3,7 @@
   "info": {
     "title": "Фабрика гипотез — API",
     "description": "Генерация и приоритизация технологических гипотез снижения потерь цветных металлов с хвостами флотации (хакатон Норникеля, задача 1).",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "paths": {
     "/api/v1/health": {
@@ -29,7 +29,7 @@
     "/api/v1/runs": {
       "post": {
         "summary": "Run Batch",
-        "description": "Полный прогон: все отчёты «Хвосты *.xlsx» из DATA_DIR.",
+        "description": "Полный прогон всех отчётов из DATA_DIR. body (опц.): KPI и ограничения.",
         "operationId": "run_batch_api_v1_runs_post",
         "parameters": [
           {
@@ -43,6 +43,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RunOptions"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Options"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -70,7 +87,7 @@
     "/api/v1/reports": {
       "post": {
         "summary": "Run Uploaded",
-        "description": "Конвейер для одного загруженного отчёта (xlsx).",
+        "description": "Конвейер для загруженного отчёта + интерактивные KPI/ограничения.",
         "operationId": "run_uploaded_api_v1_reports_post",
         "parameters": [
           {
@@ -207,6 +224,297 @@
                     "additionalProperties": true
                   },
                   "title": "Response Plant Hypotheses Api V1 Plants  Plant  Hypotheses Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add Hypothesis",
+        "description": "Произвольная гипотеза эксперта: категория, адресуемый металл,\nобоснование и место в общем ранжировании определяются системой.",
+        "operationId": "add_hypothesis_api_v1_plants__plant__hypotheses_post",
+        "parameters": [
+          {
+            "name": "plant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plant"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewHypothesis"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Add Hypothesis Api V1 Plants  Plant  Hypotheses Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plants/{plant}/hypotheses/{hyp_id}": {
+      "patch": {
+        "summary": "Set Hypothesis Status",
+        "description": "Экспертная валидация: подтвердить / отклонить гипотезу (ТЗ 8.4).",
+        "operationId": "set_hypothesis_status_api_v1_plants__plant__hypotheses__hyp_id__patch",
+        "parameters": [
+          {
+            "name": "plant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plant"
+            }
+          },
+          {
+            "name": "hyp_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Hyp Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HypothesisStatus"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Set Hypothesis Status Api V1 Plants  Plant  Hypotheses  Hyp Id  Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Hypothesis",
+        "operationId": "delete_hypothesis_api_v1_plants__plant__hypotheses__hyp_id__delete",
+        "parameters": [
+          {
+            "name": "plant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plant"
+            }
+          },
+          {
+            "name": "hyp_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Hyp Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Hypothesis Api V1 Plants  Plant  Hypotheses  Hyp Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plants/{plant}/graph": {
+      "get": {
+        "summary": "Plant Graph",
+        "operationId": "plant_graph_api_v1_plants__plant__graph_get",
+        "parameters": [
+          {
+            "name": "plant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Plant Graph Api V1 Plants  Plant  Graph Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plants/{plant}/graph/patch": {
+      "post": {
+        "summary": "Patch Graph",
+        "description": "Корректировка графа экспертом: удаление узлов/рёбер, новые связи.\nПравки хранятся отдельно и переживают повторную генерацию.",
+        "operationId": "patch_graph_api_v1_plants__plant__graph_patch_post",
+        "parameters": [
+          {
+            "name": "plant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plant"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphDelta"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Patch Graph Api V1 Plants  Plant  Graph Patch Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Reset Graph",
+        "operationId": "reset_graph_api_v1_plants__plant__graph_patch_delete",
+        "parameters": [
+          {
+            "name": "plant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Reset Graph Api V1 Plants  Plant  Graph Patch Delete"
                 }
               }
             }
@@ -360,6 +668,16 @@
             "type": "string",
             "contentMediaType": "application/octet-stream",
             "title": "File"
+          },
+          "target_kpi": {
+            "type": "string",
+            "title": "Target Kpi",
+            "default": ""
+          },
+          "constraints": {
+            "type": "string",
+            "title": "Constraints",
+            "default": ""
           }
         },
         "type": "object",
@@ -532,6 +850,37 @@
         ],
         "title": "Finding"
       },
+      "GraphDelta": {
+        "properties": {
+          "removed_nodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Removed Nodes",
+            "default": []
+          },
+          "removed_edges": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Removed Edges",
+            "default": []
+          },
+          "added_edges": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Added Edges",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "GraphDelta"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -672,6 +1021,55 @@
         ],
         "title": "Hypothesis"
       },
+      "HypothesisStatus": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "HypothesisStatus"
+      },
+      "NewHypothesis": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "NewHypothesis",
+        "description": "Произвольная гипотеза эксперта — обрабатывается как любая другая."
+      },
       "PlantResult": {
         "properties": {
           "plant": {
@@ -719,6 +1117,32 @@
           "findings"
         ],
         "title": "PlantResult"
+      },
+      "RunOptions": {
+        "properties": {
+          "target_kpi": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Kpi"
+          },
+          "constraints": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Constraints",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "RunOptions",
+        "description": "Интерактивный ввод R&D-задачи (ТЗ 5.1)."
       },
       "RunSummary": {
         "properties": {
