@@ -105,13 +105,16 @@ def _pick(cells, colmap, key):
     return None
 
 
-def parse_workbook(path: str | Path) -> dict:
-    wb = openpyxl.load_workbook(path, data_only=True)
+def parse_workbook(src) -> dict:
+    """src — путь или файловый объект (BytesIO): диск не обязателен."""
+    wb = openpyxl.load_workbook(src, data_only=True)
     ws = wb["Итог"] if "Итог" in wb.sheetnames else wb.worksheets[0]
 
+    is_path = isinstance(src, (str, Path))
+    stem = Path(src).stem if is_path else ""
     result = {
-        "source_file": str(path),
-        "plant": Path(path).stem.replace("Хвосты", "").replace("_2", "").strip(),
+        "source_file": str(src) if is_path else "upload",
+        "plant": stem.replace("Хвосты", "").replace("_2", "").strip(),
         "feed": {},
         "tailings_fact": None,
         "streams": [],

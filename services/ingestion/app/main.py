@@ -1,10 +1,11 @@
 """Ingestion-сервис: приём xlsx-отчёта о хвостах -> структурированный JSON.
 
 POST /api/v1/parse — multipart-загрузка отчёта института.
+Парсинг идёт из памяти (BytesIO), временные файлы не создаются.
 """
 from __future__ import annotations
 
-import tempfile
+import io
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -28,16 +29,11 @@ def health() -> dict:
 async def parse(file: UploadFile = File(...)) -> dict:
     if not (file.filename or "").lower().endswith(".xlsx"):
         raise HTTPException(400, "Ожидается файл .xlsx")
-    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
-        tmp.write(await file.read())
-        tmp_path = Path(tmp.name)
     try:
-        parsed = parse_workbook(tmp_path)
+        parsed = parse_workbook(io.BytesIO(await file.read()))
     except Exception as e:
         raise HTTPException(422, f"Не удалось разобрать отчёт: {e}") from e
-    finally:
-        tmp_path.unlink(missing_ok=True)
-    # имя фабрики берём из имени загруженного файла, а не временного
+    # имя фабрики — из имени загруженного файла
     parsed["source_file"] = file.filename
     parsed["plant"] = Path(file.filename).stem.replace("Хвосты", "").replace("_2", "").strip()
     return parsed

@@ -614,6 +614,7 @@
     "/api/v1/plants/{plant}/export": {
       "get": {
         "summary": "Export",
+        "description": "Экспорт формируется на лету, на диск ничего не пишется.",
         "operationId": "export_api_v1_plants__plant__export_get",
         "parameters": [
           {

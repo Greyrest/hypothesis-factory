@@ -1,40 +1,43 @@
-"""Экспорт результатов: JSON (интеграция), CSV (задачи), Markdown (отчёт)."""
+"""Экспорт результатов на лету: JSON (интеграция), CSV (задачи), Markdown (отчёт).
+
+Генерируется по запросу GET /export — на диск ничего не пишется.
+"""
 from __future__ import annotations
 
 import csv
+import io
 import json
-from pathlib import Path
 
 
-def export_json(result: dict, path: Path):
-    path.write_text(json.dumps(result, ensure_ascii=False, indent=2),
-                    encoding="utf-8")
+def to_json(result: dict) -> str:
+    return json.dumps(result, ensure_ascii=False, indent=2)
 
 
-def export_csv(result: dict, path: Path):
-    with path.open("w", newline="", encoding="utf-8-sig") as f:
-        w = csv.writer(f, delimiter=";")
-        w.writerow(["rank", "priority", "title", "category", "hypothesis",
-                    "addressable_ni_t", "addressable_cu_t",
-                    "kpi_delta_ni_t_min", "kpi_delta_ni_t_max",
-                    "kpi_delta_cu_t_min", "kpi_delta_cu_t_max",
-                    "feasibility_1_5", "novelty_1_5", "risk_1_5",
-                    "status", "streams", "sources"])
-        for h in result["hypotheses"]:
-            eff = h["expected_effect"]
-            w.writerow([
-                h["rank"], h["scores"]["priority"], h["title"], h["category_ru"],
-                h["hypothesis"],
-                eff["addressable_t"]["ni"], eff["addressable_t"]["cu"],
-                eff["kpi_delta_t"]["ni"][0], eff["kpi_delta_t"]["ni"][1],
-                eff["kpi_delta_t"]["cu"][0], eff["kpi_delta_t"]["cu"][1],
-                h["scores"]["feasibility"], h["scores"]["novelty"],
-                h["scores"]["risk"], h["status"],
-                "; ".join(h["streams"]), "; ".join(h["sources"]),
-            ])
+def to_csv(result: dict) -> str:
+    buf = io.StringIO()
+    w = csv.writer(buf, delimiter=";")
+    w.writerow(["rank", "priority", "title", "category", "hypothesis",
+                "addressable_ni_t", "addressable_cu_t",
+                "kpi_delta_ni_t_min", "kpi_delta_ni_t_max",
+                "kpi_delta_cu_t_min", "kpi_delta_cu_t_max",
+                "feasibility_1_5", "novelty_1_5", "risk_1_5",
+                "status", "streams", "sources"])
+    for h in result["hypotheses"]:
+        eff = h["expected_effect"]
+        w.writerow([
+            h["rank"], h["scores"]["priority"], h["title"], h["category_ru"],
+            h["hypothesis"],
+            eff["addressable_t"]["ni"], eff["addressable_t"]["cu"],
+            eff["kpi_delta_t"]["ni"][0], eff["kpi_delta_t"]["ni"][1],
+            eff["kpi_delta_t"]["cu"][0], eff["kpi_delta_t"]["cu"][1],
+            h["scores"]["feasibility"], h["scores"]["novelty"],
+            h["scores"]["risk"], h["status"],
+            "; ".join(h["streams"]), "; ".join(h["sources"]),
+        ])
+    return buf.getvalue()
 
 
-def export_markdown(result: dict, path: Path):
+def to_markdown(result: dict) -> str:
     fmt = lambda v: f"{v:,.0f}".replace(",", " ")
     s = result["summary"]
     lines = [
@@ -42,6 +45,13 @@ def export_markdown(result: dict, path: Path):
         "",
         f"*Движок генерации: {result['engine']}*",
         "",
+    ]
+    proj = result.get("project")
+    if proj:
+        lines += [f"**Задача:** {proj.get('target_kpi') or '—'}", ""]
+        if proj.get("constraints"):
+            lines += ["**Ограничения:** " + "; ".join(proj["constraints"]), ""]
+    lines += [
         "## Сводка потерь",
         "",
         f"| Показатель | Ni (эл. 28) | Cu (эл. 29) |",
@@ -67,7 +77,7 @@ def export_markdown(result: dict, path: Path):
             "",
             f"**Приоритет: {sc['priority']}** · категория: {h['category_ru']} · "
             f"эффект: {fmt(sc['impact_t'])} т адресуемо · реализуемость {sc['feasibility']}/5 · "
-            f"новизна {sc['novelty']}/5 · риск {sc['risk']}/5",
+            f"новизна {sc['novelty']}/5 · риск {sc['risk']}/5 · статус: {h['status']}",
             "",
             f"**Гипотеза.** {h['hypothesis']}",
             "",
@@ -89,18 +99,4 @@ def export_markdown(result: dict, path: Path):
         lines += [f"{i}. {step}" for i, step in enumerate(h["roadmap"], 1)]
         lines.append("")
 
-    path.write_text("\n".join(lines), encoding="utf-8")
-
-
-def export_all(result: dict, out_dir: Path) -> dict:
-    out_dir.mkdir(parents=True, exist_ok=True)
-    stem = result["plant"].replace(" ", "_")
-    paths = {
-        "json": out_dir / f"hypotheses_{stem}.json",
-        "csv": out_dir / f"hypotheses_{stem}.csv",
-        "md": out_dir / f"report_{stem}.md",
-    }
-    export_json(result, paths["json"])
-    export_csv(result, paths["csv"])
-    export_markdown(result, paths["md"])
-    return {k: str(v) for k, v in paths.items()}
+    return "\n".join(lines)

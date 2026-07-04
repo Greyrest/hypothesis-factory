@@ -13,22 +13,24 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from hf_contracts import PlantResult
 from pydantic import BaseModel
 
 from . import clients
 from .evaluation import evaluate
-from .exporters import export_all
+from .exporters import to_csv, to_json, to_markdown
 from .graph import build_graph, merge_patch
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "output"))
 STATE_FILE = OUTPUT_DIR / "state.json"
-FEEDBACK_FILE = OUTPUT_DIR / "feedback.json"
+# HF_PERSIST=0 — полностью безфайловый режим: всё в памяти до перезапуска
+PERSIST = os.environ.get("HF_PERSIST", "1") not in ("0", "false", "no")
 
 app = FastAPI(
     title="Фабрика гипотез — API",
@@ -39,10 +41,12 @@ app = FastAPI(
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
                    allow_headers=["*"])
 
-# plant -> результат конвейера / правки графа
+# plant -> результат конвейера / правки графа; всё состояние — в памяти,
+# state.json — единственный файл (только снапшот для рестарта)
 _results: dict[str, dict] = {}
 _graph_patch: dict[str, dict] = {}
 _feedback: dict[str, dict] = {}
+_evaluation: dict = {}
 
 HYP_STATUSES = {"confirmed", "rejected", "catalog", "generated", "llm",
                 "llm-new", "expert_added"}
@@ -83,26 +87,27 @@ class RunSummary(BaseModel):
 
 
 def _persist():
+    if not PERSIST:
+        return
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(
-        json.dumps({"results": _results, "graph_patch": _graph_patch},
+        json.dumps({"results": _results, "graph_patch": _graph_patch,
+                    "feedback": _feedback, "evaluation": _evaluation},
                    ensure_ascii=False), encoding="utf-8")
-    FEEDBACK_FILE.write_text(json.dumps(_feedback, ensure_ascii=False, indent=2),
-                             encoding="utf-8")
 
 
 @app.on_event("startup")
 def _load_state():
-    global _results, _graph_patch, _feedback
-    if STATE_FILE.exists():
+    global _results, _graph_patch, _feedback, _evaluation
+    if PERSIST and STATE_FILE.exists():
         state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
         if "results" in state:
             _results = state["results"]
             _graph_patch = state.get("graph_patch", {})
+            _feedback = state.get("feedback", {})
+            _evaluation = state.get("evaluation", {})
         else:  # старый формат: плоский dict результатов
             _results = state
-    if FEEDBACK_FILE.exists():
-        _feedback = json.loads(FEEDBACK_FILE.read_text(encoding="utf-8"))
 
 
 def _get(plant: str) -> dict:
@@ -139,15 +144,13 @@ def run_batch(use_llm: bool = Query(True),
         parsed = clients.parse_xlsx(xlsx.name, xlsx.read_bytes())
         result = clients.generate(parsed, use_llm, _feedback or None, project)
         _results[result["plant"]] = result
-        export_all(result, OUTPUT_DIR / "export")
 
-    ev = evaluate(_results, DATA_DIR)
-    (OUTPUT_DIR / "evaluation.json").write_text(
-        json.dumps(ev, ensure_ascii=False, indent=2), encoding="utf-8")
+    global _evaluation
+    _evaluation = evaluate(_results, DATA_DIR)
     _persist()
     return RunSummary(plants=sorted(_results),
                       engine={p: r["engine"] for p, r in _results.items()},
-                      evaluation=ev)
+                      evaluation=_evaluation)
 
 
 @app.post("/api/v1/reports", response_model=PlantResult)
@@ -164,7 +167,6 @@ async def run_uploaded(use_llm: bool = Query(True),
     parsed = clients.parse_xlsx(file.filename or "report.xlsx", await file.read())
     result = clients.generate(parsed, use_llm, _feedback or None, project)
     _results[result["plant"]] = result
-    export_all(result, OUTPUT_DIR / "export")
     _persist()
     return result
 
@@ -278,17 +280,23 @@ def get_feedback() -> dict:
 
 @app.get("/api/v1/evaluation")
 def evaluation() -> dict:
-    path = OUTPUT_DIR / "evaluation.json"
-    if not path.exists():
+    if not _evaluation:
         raise HTTPException(404, "Оценка ещё не рассчитана — POST /api/v1/runs")
-    return json.loads(path.read_text(encoding="utf-8"))
+    return _evaluation
 
 
 @app.get("/api/v1/plants/{plant}/export")
 def export(plant: str, fmt: str = Query("json", pattern="^(json|csv|md)$")):
+    """Экспорт формируется на лету, на диск ничего не пишется."""
     result = _get(plant)
-    paths = export_all(result, OUTPUT_DIR / "export")
-    media = {"json": "application/json", "csv": "text/csv",
-             "md": "text/markdown"}[fmt]
-    return FileResponse(paths[fmt], media_type=media,
-                        filename=Path(paths[fmt]).name)
+    stem = plant.replace(" ", "_")
+    if fmt == "json":
+        content, media, name = to_json(result), "application/json", f"hypotheses_{stem}.json"
+    elif fmt == "csv":
+        # utf-8-sig — чтобы Excel корректно открыл кириллицу
+        content, media, name = to_csv(result), "text/csv; charset=utf-8", f"hypotheses_{stem}.csv"
+    else:
+        content, media, name = to_markdown(result), "text/markdown; charset=utf-8", f"report_{stem}.md"
+    body = content.encode("utf-8-sig" if fmt == "csv" else "utf-8")
+    return Response(body, media_type=media, headers={
+        "Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
