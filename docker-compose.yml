@@ -1,6 +1,8 @@
 # Фабрика гипотез — микросервисная раскладка.
 # Смена нейронки: поменяйте LLM_PROVIDER / LLM_MODEL у сервиса llm и
 # перезапустите только его — остальные сервисы не трогаются.
+# Свой провайдер (не Claude/OpenAI): LLM_PROVIDER=custom + LLM_BASE_URL +
+# LLM_API_KEY + LLM_MODEL — подойдёт любой OpenAI-совместимый API.
 # Переменные окружения читаются из .env (см. .env.example).
 
 x-py-health: &py-health
@@ -44,9 +46,13 @@ services:
     restart: unless-stopped
     <<: *py-health
     environment:
-      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}   # anthropic | mock | none
+      # anthropic | custom (любой OpenAI-совместимый API) | mock | none
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
       LLM_MODEL: ${LLM_MODEL:-claude-opus-4-8}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # для LLM_PROVIDER=custom: база API и ключ вашего провайдера
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
     ports: ["8004:8000"]
 
   gateway:

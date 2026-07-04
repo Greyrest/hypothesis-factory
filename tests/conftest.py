@@ -53,7 +53,8 @@ def gen():
 @pytest.fixture(scope="session")
 def llm():
     return load_service("llm", {"LLM_PROVIDER": "mock"},
-                        extra=("providers.anthropic_provider",))
+                        extra=("providers.anthropic_provider",
+                               "providers.openai_compat"))
 
 
 @pytest.fixture(scope="session")

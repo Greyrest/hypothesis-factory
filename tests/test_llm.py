@@ -46,6 +46,70 @@ def test_anthropic_no_key_returns_none(llm, monkeypatch):
     assert from_mod.AnthropicProvider().enhance({}) is None
 
 
+# ------------------------------------ custom: любой OpenAI-совместимый API
+class _FakeResp:
+    status_code = 200
+
+    def __init__(self, payload):
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+    def raise_for_status(self):
+        pass
+
+
+def _openai_answer(content: dict) -> dict:
+    import json
+    return {"choices": [{"message":
+                         {"content": "```json\n" + json.dumps(
+                             content, ensure_ascii=False) + "\n```"}}]}
+
+
+def _custom_provider(mod):
+    p = mod.OpenAICompatProvider()
+    p.base_url, p.api_key, p.model = "http://fake/v1", "k", "any-model"
+    return p
+
+
+def test_custom_provider_enhance_and_translate(llm, monkeypatch):
+    """Свой ключ + любой OpenAI-совместимый бэкенд: единая схема ответа."""
+    mod = llm["providers.openai_compat"]
+    p = _custom_provider(mod)
+
+    hyp = {"base_id": None, "title": "Т", "hypothesis": "Если …, то …",
+           "mechanism": "м", "category": "FLOT", "risks": "один риск",
+           "roadmap": ["шаг"], "novelty": "4", "feasibility": 9, "risk": 2,
+           "rationale": "r"}
+    monkeypatch.setattr(mod.httpx, "post", lambda *a, **kw: _FakeResp(
+        _openai_answer({"hypotheses": [hyp, {"мусор": True}]})))
+    items = p.enhance({"диагностика": {}})
+    assert len(items) == 1, "невалидные items отфильтрованы"
+    # нормализация под общую схему: строки/выход за 1..5 -> целые в диапазоне
+    assert items[0]["novelty"] == 4 and items[0]["feasibility"] == 5
+    assert items[0]["risks"] == ["один риск"]
+
+    monkeypatch.setattr(mod.httpx, "post", lambda *a, **kw: _FakeResp(
+        _openai_answer({"translations": ["loss of nickel"]})))
+    assert p.translate(["потери никеля"], "en") == ["loss of nickel"]
+
+
+def test_custom_provider_graceful_degradation(llm, monkeypatch):
+    """Не настроен или бэкенд упал -> None, конвейер живёт rule-based."""
+    mod = llm["providers.openai_compat"]
+    for var in ("LLM_BASE_URL", "LLM_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+    assert mod.OpenAICompatProvider().enhance({}) is None
+
+    p = _custom_provider(mod)
+    def boom(*a, **kw):
+        raise OSError("сети нет")
+    monkeypatch.setattr(mod.httpx, "post", boom)
+    assert p.enhance({"x": 1}) is None
+    assert p.translate(["x"], "en") is None
+
+
 def test_context_includes_user_task(llm):
     ctx = llm["schema"].build_context(
         {**_diagnosis(), "project": {"target_kpi": "снизить потери",

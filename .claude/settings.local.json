@@ -57,7 +57,8 @@
       "Bash(python3 -c 'import json,sys; d=json.load\\(sys.stdin\\); print\\(\"gateway ok, downstream:\", {k:v[\"status\"] for k,v in d[\"downstream\"].items\\(\\)}, \"| plants:\", d[\"plants_loaded\"]\\)')",
       "Bash(curl -s -o /dev/null -w 'дашборд: %{http_code}\\\\n' http://localhost:8088/)",
       "Bash(/Users/ivanzlobin/hypothesis-factory/.venv/bin/python -m pytest --version)",
-      "Bash(make venv *)"
+      "Bash(make venv *)",
+      "Bash(LLM_PROVIDER=custom LLM_BASE_URL=https://api.deepseek.com/v1 LLM_API_KEY=test-key LLM_MODEL=deepseek-chat ../../.venv/bin/python -c ' *)"
     ]
   }
 }
