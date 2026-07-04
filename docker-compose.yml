@@ -1,0 +1,64 @@
+name: hypothesis-factory
+
+x-backend: &backend
+  image: hypothesis-factory-backend:local
+  build: {context: ., dockerfile: Dockerfile}
+  restart: unless-stopped
+  environment: &common-env
+    HF_DATA_DIR: /data
+  volumes: [runtime-data:/data]
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+    interval: 10s
+    timeout: 3s
+    retries: 5
+    start_period: 10s
+
+services:
+  gateway:
+    <<: *backend
+    command: ["uvicorn", "services.gateway.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      <<: *common-env
+      HF_DB_PATH: /data/hypothesis_factory.sqlite3
+      HF_INGESTION_URL: http://ingestion:8000
+      HF_KNOWLEDGE_URL: http://knowledge:8000
+      HF_HYPOTHESIS_URL: http://hypothesis:8000
+      HF_MODEL_RUNTIME_URL: http://model-runtime:8000
+      HF_CORS_ORIGINS: http://localhost:3000
+    depends_on:
+      ingestion: {condition: service_healthy}
+      knowledge: {condition: service_healthy}
+      hypothesis: {condition: service_healthy}
+      model-runtime: {condition: service_healthy}
+  ingestion:
+    <<: *backend
+    command: ["uvicorn", "services.ingestion.main:app", "--host", "0.0.0.0", "--port", "8000"]
+  knowledge:
+    <<: *backend
+    command: ["uvicorn", "services.knowledge.main:app", "--host", "0.0.0.0", "--port", "8000"]
+  hypothesis:
+    <<: *backend
+    command: ["uvicorn", "services.hypothesis.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      <<: *common-env
+      HF_MODEL_RUNTIME_URL: http://model-runtime:8000
+  model-runtime:
+    <<: *backend
+    command: ["uvicorn", "services.model_runtime.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      <<: *common-env
+      HF_ALLOW_EXTERNAL_MODELS: ${HF_ALLOW_EXTERNAL_MODELS:-false}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+  frontend:
+    build: {context: frontend, dockerfile: Dockerfile}
+    restart: unless-stopped
+    ports: ["${HF_PORT:-3000}:80"]
+    depends_on:
+      gateway: {condition: service_healthy}
+
+volumes:
+  runtime-data:
+
