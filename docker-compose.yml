@@ -1,0 +1,56 @@
+# Фабрика гипотез — микросервисная раскладка.
+# Смена нейронки: поменяйте LLM_PROVIDER / LLM_MODEL у сервиса llm и
+# перезапустите только его — остальные сервисы не трогаются.
+
+services:
+  ingestion:
+    build: ./services/ingestion
+    ports: ["8001:8000"]
+
+  knowledge:
+    build: ./services/knowledge
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - "${DATA_DIR:-../Задача 1. Фабрика гипотез/Задача 1}:/data:ro"
+    ports: ["8002:8000"]
+
+  generation:
+    build: ./services/generation
+    environment:
+      KNOWLEDGE_URL: http://knowledge:8000
+      LLM_URL: http://llm:8000
+    depends_on: [knowledge, llm]
+    ports: ["8003:8000"]
+
+  llm:
+    build: ./services/llm
+    environment:
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}   # anthropic | mock | none
+      LLM_MODEL: ${LLM_MODEL:-claude-opus-4-8}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports: ["8004:8000"]
+
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    environment:
+      DATA_DIR: /data
+      OUTPUT_DIR: /output
+      INGESTION_URL: http://ingestion:8000
+      KNOWLEDGE_URL: http://knowledge:8000
+      GENERATION_URL: http://generation:8000
+      LLM_URL: http://llm:8000
+    volumes:
+      - "${DATA_DIR:-../Задача 1. Фабрика гипотез/Задача 1}:/data:ro"
+      - ./output:/output
+    depends_on: [ingestion, knowledge, generation]
+    ports: ["8000:8000"]
+
+  frontend:
+    image: nginx:alpine
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    depends_on: [gateway]
+    ports: ["8088:80"]

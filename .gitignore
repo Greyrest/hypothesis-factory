@@ -6,3 +6,7 @@ __pycache__/
 output/
 .DS_Store
 feedback.json
+.clode
+output_test/
+state.json
+*.egg-info/

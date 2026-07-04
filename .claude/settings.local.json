@@ -1,7 +1,35 @@
 {
   "permissions": {
     "allow": [
-      "Bash(uv --version)"
+      "Read(//Users/zhamal/Documents/code/hackaton/nornickel/**)",
+      "Read(//Users/zhamal/Documents/code/hackaton/nornickel/Задача 1. Фабрика гипотез/**)",
+      "Bash(git rm *)",
+      "Bash(chmod +x scripts/run_local.sh)",
+      "Bash(python3 -m venv .venv)",
+      "Bash(.venv/bin/pip -q install fastapi uvicorn httpx python-multipart openpyxl python-docx anthropic pydantic)",
+      "Bash(.venv/bin/pip -q install -e libs/contracts)",
+      "Bash(.venv/bin/python *)",
+      "Bash(curl -s -X POST \"http://localhost:8000/api/v1/runs?use_llm=true\")",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/feedback -H 'Content-Type: application/json' -d '{\"category\":\"FLOT\",\"vote\":\"up\"}')",
+      "Bash(curl -s \"http://localhost:8000/api/v1/plants/ТОФ\")",
+      "Bash(curl -s \"http://localhost:8000/api/v1/plants/ТОФ/export?fmt=csv\")",
+      "Bash(kill %1 %2 %3 %4 %5)",
+      "Bash(pkill -f 'uvicorn app.main:app --port 800')",
+      "Bash(git add *)",
+      "Bash(git restore *)",
+      "Bash(docker pull *)",
+      "Bash(LLM_PROVIDER=none docker compose up --build -d)",
+      "Bash(curl -s http://localhost:8000/api/v1/health)",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s -o /dev/null -w 'frontend: %{http_code}\\\\n' http://localhost:8080/)",
+      "Bash(lsof -nP -iTCP:8080 -sTCP:LISTEN)",
+      "Bash(lsof -nP -iTCP:8088 -sTCP:LISTEN)",
+      "Bash(LLM_PROVIDER=none docker compose up -d)",
+      "Bash(curl -s -o /dev/null -w 'frontend :8088 -> %{http_code}\\\\n' http://localhost:8088/)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('gateway:', d['status'], '| downstream:', {k: v['status'] for k,v in d['downstream'].items\\(\\)}\\)\")",
+      "Bash(curl -s -X POST \"http://localhost:8000/api/v1/runs?use_llm=false\")",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' http://localhost:8088/app.js)"
     ]
   }
 }

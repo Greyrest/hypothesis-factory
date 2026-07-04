@@ -1,0 +1,13 @@
+[project]
+name = "hf-contracts"
+version = "0.1.0"
+description = "Фабрика гипотез — общие модели данных (контракты между сервисами)"
+requires-python = ">=3.10"
+dependencies = ["pydantic>=2.5"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

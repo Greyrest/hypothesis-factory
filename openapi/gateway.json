@@ -1,0 +1,896 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Фабрика гипотез — API",
+    "description": "Генерация и приоритизация технологических гипотез снижения потерь цветных металлов с хвостами флотации (хакатон Норникеля, задача 1).",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health Api V1 Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs": {
+      "post": {
+        "summary": "Run Batch",
+        "description": "Полный прогон: все отчёты «Хвосты *.xlsx» из DATA_DIR.",
+        "operationId": "run_batch_api_v1_runs_post",
+        "parameters": [
+          {
+            "name": "use_llm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Use Llm"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reports": {
+      "post": {
+        "summary": "Run Uploaded",
+        "description": "Конвейер для одного загруженного отчёта (xlsx).",
+        "operationId": "run_uploaded_api_v1_reports_post",
+        "parameters": [
+          {
+            "name": "use_llm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Use Llm"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_run_uploaded_api_v1_reports_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plants": {
+      "get": {
+        "summary": "Plants",
+        "operationId": "plants_api_v1_plants_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Plants Api V1 Plants Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plants/{plant}": {
+      "get": {
+        "summary": "Plant Result",
+        "operationId": "plant_result_api_v1_plants__plant__get",
+        "parameters": [
+          {
+            "name": "plant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plants/{plant}/hypotheses": {
+      "get": {
+        "summary": "Plant Hypotheses",
+        "operationId": "plant_hypotheses_api_v1_plants__plant__hypotheses_get",
+        "parameters": [
+          {
+            "name": "plant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Plant Hypotheses Api V1 Plants  Plant  Hypotheses Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/feedback": {
+      "get": {
+        "summary": "Get Feedback",
+        "operationId": "get_feedback_api_v1_feedback_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Feedback Api V1 Feedback Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Feedback",
+        "description": "Голос эксперта 👍/👎 по категории мероприятия + переранжирование.",
+        "operationId": "feedback_api_v1_feedback_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackVote"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Feedback Api V1 Feedback Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evaluation": {
+      "get": {
+        "summary": "Evaluation",
+        "operationId": "evaluation_api_v1_evaluation_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Evaluation Api V1 Evaluation Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plants/{plant}/export": {
+      "get": {
+        "summary": "Export",
+        "operationId": "export_api_v1_plants__plant__export_get",
+        "parameters": [
+          {
+            "name": "plant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plant"
+            }
+          },
+          {
+            "name": "fmt",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(json|csv|md)$",
+              "default": "json",
+              "title": "Fmt"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Body_run_uploaded_api_v1_reports_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_run_uploaded_api_v1_reports_post"
+      },
+      "Evidence": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "fact": {
+            "type": "string",
+            "title": "Fact"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "source",
+          "fact"
+        ],
+        "title": "Evidence"
+      },
+      "ExpectedEffect": {
+        "properties": {
+          "addressable_t": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Addressable T"
+          },
+          "uplift_pct": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Uplift Pct"
+          },
+          "kpi_delta_t": {
+            "additionalProperties": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Kpi Delta T"
+          },
+          "kpi": {
+            "type": "string",
+            "title": "Kpi"
+          },
+          "assumption": {
+            "type": "string",
+            "title": "Assumption"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "addressable_t",
+          "uplift_pct",
+          "kpi_delta_t",
+          "kpi",
+          "assumption"
+        ],
+        "title": "ExpectedEffect"
+      },
+      "FeedbackVote": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "vote": {
+            "type": "string",
+            "title": "Vote"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "vote"
+        ],
+        "title": "FeedbackVote"
+      },
+      "Finding": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "signal": {
+            "type": "string",
+            "title": "Signal"
+          },
+          "element": {
+            "type": "string",
+            "title": "Element"
+          },
+          "element_ru": {
+            "type": "string",
+            "title": "Element Ru"
+          },
+          "stream": {
+            "type": "string",
+            "title": "Stream"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "tons": {
+            "type": "number",
+            "title": "Tons"
+          },
+          "share_of_losses_pct": {
+            "type": "number",
+            "title": "Share Of Losses Pct"
+          },
+          "classes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Classes",
+            "default": []
+          },
+          "forms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Forms",
+            "default": []
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "informational": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Informational"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "signal",
+          "element",
+          "element_ru",
+          "stream",
+          "title",
+          "tons",
+          "share_of_losses_pct",
+          "detail"
+        ],
+        "title": "Finding"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Hypothesis": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "hypothesis": {
+            "type": "string",
+            "title": "Hypothesis"
+          },
+          "categories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Categories"
+          },
+          "category_ru": {
+            "type": "string",
+            "title": "Category Ru"
+          },
+          "equipment": {
+            "type": "string",
+            "title": "Equipment",
+            "default": ""
+          },
+          "streams": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Streams",
+            "default": []
+          },
+          "mechanism": {
+            "type": "string",
+            "title": "Mechanism"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "expected_effect": {
+            "$ref": "#/components/schemas/ExpectedEffect"
+          },
+          "scores": {
+            "$ref": "#/components/schemas/Scores"
+          },
+          "risks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Risks"
+          },
+          "roadmap": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Roadmap"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "matched_signals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Matched Signals",
+            "default": []
+          },
+          "finding_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Finding Ids",
+            "default": []
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "hypothesis",
+          "categories",
+          "category_ru",
+          "mechanism",
+          "evidence",
+          "expected_effect",
+          "scores",
+          "risks",
+          "roadmap",
+          "status",
+          "sources"
+        ],
+        "title": "Hypothesis"
+      },
+      "PlantResult": {
+        "properties": {
+          "plant": {
+            "type": "string",
+            "title": "Plant"
+          },
+          "engine": {
+            "type": "string",
+            "title": "Engine"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/Summary"
+          },
+          "hypotheses": {
+            "items": {
+              "$ref": "#/components/schemas/Hypothesis"
+            },
+            "type": "array",
+            "title": "Hypotheses"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/Finding"
+            },
+            "type": "array",
+            "title": "Findings"
+          },
+          "cells": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Cells",
+            "default": []
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "plant",
+          "engine",
+          "summary",
+          "hypotheses",
+          "findings"
+        ],
+        "title": "PlantResult"
+      },
+      "RunSummary": {
+        "properties": {
+          "plants": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Plants"
+          },
+          "engine": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Engine"
+          },
+          "evaluation": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Evaluation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "plants",
+          "engine",
+          "evaluation"
+        ],
+        "title": "RunSummary"
+      },
+      "Scores": {
+        "properties": {
+          "feasibility": {
+            "type": "integer",
+            "title": "Feasibility"
+          },
+          "novelty": {
+            "type": "integer",
+            "title": "Novelty"
+          },
+          "risk": {
+            "type": "integer",
+            "title": "Risk"
+          },
+          "impact_t": {
+            "type": "number",
+            "title": "Impact T"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "feedback_adj": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feedback Adj"
+          },
+          "diversity_adj": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diversity Adj"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "feasibility",
+          "novelty",
+          "risk",
+          "impact_t"
+        ],
+        "title": "Scores"
+      },
+      "Summary": {
+        "properties": {
+          "losses_ni_t": {
+            "type": "number",
+            "title": "Losses Ni T"
+          },
+          "losses_cu_t": {
+            "type": "number",
+            "title": "Losses Cu T"
+          },
+          "recoverable_ni_t": {
+            "type": "number",
+            "title": "Recoverable Ni T"
+          },
+          "recoverable_cu_t": {
+            "type": "number",
+            "title": "Recoverable Cu T"
+          },
+          "recoverable_ni_pct": {
+            "type": "number",
+            "title": "Recoverable Ni Pct"
+          },
+          "recoverable_cu_pct": {
+            "type": "number",
+            "title": "Recoverable Cu Pct"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "losses_ni_t",
+          "losses_cu_t",
+          "recoverable_ni_t",
+          "recoverable_cu_t",
+          "recoverable_ni_pct",
+          "recoverable_cu_pct"
+        ],
+        "title": "Summary"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
