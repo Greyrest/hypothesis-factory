@@ -8,6 +8,9 @@ class MockProvider(LLMProvider):
     name = "mock"
     model = "mock-1"
 
+    def translate(self, texts: list[str], lang: str) -> list[str] | None:
+        return [f"[{lang}] {t}" for t in texts]
+
     def enhance(self, context: dict) -> list[dict] | None:
         drafts = context.get("черновики_гипотез", [])
         if not drafts:

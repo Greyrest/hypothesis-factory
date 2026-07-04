@@ -36,6 +36,7 @@ class GenerateRequest(BaseModel):
     use_llm: bool = True
     feedback: dict | None = None
     project: dict | None = None  # {"target_kpi": str, "constraints": [str]}
+    weights: dict | None = None  # {"impact":.4,"feasibility":.3,"risk":.2,"novelty":.1}
 
 
 class AnalyzeRequest(BaseModel):
@@ -50,6 +51,14 @@ class AnalyzeRequest(BaseModel):
 class RerankRequest(BaseModel):
     hypotheses: list[dict]
     feedback: dict | None = None
+    weights: dict | None = None
+
+
+class WhatIfRequest(BaseModel):
+    """Контрфактуальный анализ: «если устранить X% потерь сигнала S»."""
+    diagnosis: dict  # cells, findings, summary
+    signal: str
+    reduction_pct: float = 50.0
 
 
 def _fetch_kb() -> dict:
@@ -76,7 +85,7 @@ def generate_endpoint(req: GenerateRequest) -> dict:
     kb = _fetch_kb()
     diagnosis = diagnose(req.parsed)
     return generate(diagnosis, kb, use_llm=req.use_llm, feedback=req.feedback,
-                    project=req.project)
+                    project=req.project, weights=req.weights)
 
 
 @app.post("/api/v1/analyze")
@@ -90,5 +99,34 @@ def analyze_endpoint(req: AnalyzeRequest) -> dict:
 @app.post("/api/v1/rerank")
 def rerank_endpoint(req: RerankRequest) -> list[dict]:
     hyps = req.hypotheses
-    rank(hyps, req.feedback)
+    rank(hyps, req.feedback, req.weights)
     return hyps
+
+
+@app.post("/api/v1/whatif")
+def whatif_endpoint(req: WhatIfRequest) -> dict:
+    """Контрфактуальный расчёт по ячейкам отчёта: адресуемый металл сигнала
+    и эффект на KPI при устранении заданной доли потерь."""
+    from .generator import SIGNAL_CELLS
+    pred = SIGNAL_CELLS.get(req.signal)
+    if pred is None:
+        raise HTTPException(400, f"Неизвестный сигнал: {req.signal}. "
+                                 f"Доступны: {sorted(SIGNAL_CELLS)}")
+    pct = max(0.0, min(100.0, req.reduction_pct))
+    tons = {"ni": 0.0, "cu": 0.0}
+    for cell in req.diagnosis.get("cells", []):
+        if pred(cell):
+            tons[cell["el"]] += cell["tons"]
+    summary = req.diagnosis.get("summary", {})
+    delta = {el: round(t * pct / 100, 1) for el, t in tons.items()}
+    return {
+        "signal": req.signal,
+        "reduction_pct": pct,
+        "addressable_t": {el: round(t, 1) for el, t in tons.items()},
+        "kpi_delta_t": delta,
+        "losses_after_t": {
+            el: round(summary.get(f"losses_{el}_t", 0) - delta[el], 1)
+            for el in ("ni", "cu")},
+        "note": "Контрфактуальная оценка по ячейкам отчёта (поток × класс × "
+                "форма); допущение линейного устранения потерь.",
+    }

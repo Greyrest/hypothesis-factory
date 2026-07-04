@@ -39,6 +39,7 @@ services:
       DATA_DIR: /data
       OUTPUT_DIR: /output
       HF_PERSIST: ${HF_PERSIST:-1}   # 0 = всё в памяти, ни одного файла
+      HF_API_KEY: ${HF_API_KEY:-}    # если задан — API требует X-API-Key
       INGESTION_URL: http://ingestion:8000
       KNOWLEDGE_URL: http://knowledge:8000
       GENERATION_URL: http://generation:8000

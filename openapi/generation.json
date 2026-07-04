@@ -188,6 +188,47 @@
           }
         }
       }
+    },
+    "/api/v1/whatif": {
+      "post": {
+        "summary": "Whatif Endpoint",
+        "description": "Контрфактуальный расчёт по ячейкам отчёта: адресуемый металл сигнала\nи эффект на KPI при устранении заданной доли потерь.",
+        "operationId": "whatif_endpoint_api_v1_whatif_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhatIfRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Whatif Endpoint Api V1 Whatif Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -288,6 +329,18 @@
               }
             ],
             "title": "Project"
+          },
+          "weights": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weights"
           }
         },
         "type": "object",
@@ -330,6 +383,18 @@
               }
             ],
             "title": "Feedback"
+          },
+          "weights": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weights"
           }
         },
         "type": "object",
@@ -377,6 +442,31 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WhatIfRequest": {
+        "properties": {
+          "diagnosis": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Diagnosis"
+          },
+          "signal": {
+            "type": "string",
+            "title": "Signal"
+          },
+          "reduction_pct": {
+            "type": "number",
+            "title": "Reduction Pct",
+            "default": 50.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "diagnosis",
+          "signal"
+        ],
+        "title": "WhatIfRequest",
+        "description": "Контрфактуальный анализ: «если устранить X% потерь сигнала S»."
       }
     }
   }

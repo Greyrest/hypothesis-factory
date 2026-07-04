@@ -36,6 +36,16 @@ class EnhanceResponse(BaseModel):
     model: str
 
 
+class TranslateRequest(BaseModel):
+    texts: list[str]
+    lang: str  # en | zh
+
+
+class TranslateResponse(BaseModel):
+    translations: list[str] | None
+    provider: str
+
+
 @app.get("/api/v1/health")
 def health() -> dict:
     return {"status": "ok", "service": "llm",
@@ -48,3 +58,11 @@ def enhance(req: EnhanceRequest) -> EnhanceResponse:
     items = _provider.enhance(ctx)
     return EnhanceResponse(items=items, provider=_provider.name,
                            model=_provider.model)
+
+
+@app.post("/api/v1/translate", response_model=TranslateResponse)
+def translate(req: TranslateRequest) -> TranslateResponse:
+    """Мультиязычность (RU/EN/CN из ТЗ): перевод отчётов через LLM-слой."""
+    return TranslateResponse(
+        translations=_provider.translate(req.texts, req.lang),
+        provider=_provider.name)

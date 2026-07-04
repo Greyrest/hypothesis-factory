@@ -234,26 +234,42 @@ def rule_based_generate(diagnosis: dict, kb: dict, feedback: dict | None = None)
 
 
 # ---------------------------------------------------------------------- rank
-def rank(hypotheses: list[dict], feedback: dict | None = None):
-    """Приоритет = 0.40 эффект + 0.30 реализуемость + 0.20 (1-риск) + 0.10 новизна."""
+# веса критериев по умолчанию; эксперт меняет их через PUT /weights (ТЗ 8.2)
+DEFAULT_WEIGHTS = {"impact": 0.40, "feasibility": 0.30, "risk": 0.20,
+                   "novelty": 0.10}
+
+
+def rank(hypotheses: list[dict], feedback: dict | None = None,
+         weights: dict | None = None):
+    """Приоритет = w·эффект + w·реализуемость + w·(1-риск) + w·новизна.
+
+    Плюс фидбэк по категориям, статус экспертной валидации и штраф за
+    однотипность. Веса нормируются к единичной сумме."""
     if not hypotheses:
         return
+    w = {**DEFAULT_WEIGHTS, **{k: v for k, v in (weights or {}).items()
+                               if k in DEFAULT_WEIGHTS and v >= 0}}
+    total_w = sum(w.values()) or 1.0
+    w = {k: v / total_w for k, v in w.items()}
+
     max_imp = max(h["scores"]["impact_t"] for h in hypotheses) or 1.0
     fb = feedback or {}
     for h in hypotheses:
         s = h["scores"]
         s["impact_norm"] = round(s["impact_t"] / max_imp, 3)
-        prio = 100 * (0.40 * s["impact_norm"]
-                      + 0.30 * s["feasibility"] / 5
-                      + 0.20 * (1 - s["risk"] / 5)
-                      + 0.10 * s["novelty"] / 5)
+        prio = 100 * (w["impact"] * s["impact_norm"]
+                      + w["feasibility"] * s["feasibility"] / 5
+                      + w["risk"] * (1 - s["risk"] / 5)
+                      + w["novelty"] * s["novelty"] / 5)
         # экспертная обратная связь по категориям: +/-3 за голос, потолок +/-10
         adj = 0
         for cat in h["categories"]:
             v = fb.get(cat, {})
             adj += 3 * (v.get("up", 0) - v.get("down", 0))
         s["feedback_adj"] = max(-10, min(10, adj))
-        s["priority"] = round(prio + s["feedback_adj"], 1)
+        # обучение на валидации: подтверждённые выше, отклонённые — вниз списка
+        status_adj = {"confirmed": 8, "rejected": -60}.get(h.get("status"), 0)
+        s["priority"] = round(prio + s["feedback_adj"] + status_adj, 1)
     hypotheses.sort(key=lambda h: -h["scores"]["priority"])
 
     # диверсификация: каждая следующая гипотеза той же категории — штраф 5,
@@ -324,17 +340,20 @@ def merge_llm_items(diagnosis: dict, drafts: list[dict], items: list[dict],
 
 def generate(diagnosis: dict, kb: dict, use_llm: bool = True,
              feedback: dict | None = None,
-             project: dict | None = None) -> dict:
+             project: dict | None = None,
+             weights: dict | None = None) -> dict:
     if project:
         # KPI и ограничения пользователя попадают в контекст LLM-усиления
         diagnosis["project"] = project
     drafts = rule_based_generate(diagnosis, kb, feedback)
+    if weights:
+        rank(drafts, feedback, weights)
     used = "rule-based"
     if use_llm:
         items, model_label = llm_enhance_remote(diagnosis, drafts, kb)
         if items:
             drafts = merge_llm_items(diagnosis, drafts, items, model_label)
-            rank(drafts, feedback)
+            rank(drafts, feedback, weights)
             used = f"rule-based + {model_label}"
 
     return {

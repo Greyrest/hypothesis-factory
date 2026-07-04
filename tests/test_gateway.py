@@ -19,11 +19,11 @@ def client(gw, gen, monkeypatch):
     monkeypatch.setattr(gw["clients"], "parse_xlsx",
                         lambda name, content: {"plant": "Тест"})
     monkeypatch.setattr(gw["clients"], "generate",
-                        lambda parsed, use_llm, fb, project=None:
+                        lambda parsed, use_llm, fb, project=None, weights=None:
                         {**result, "project": project})
 
-    def fake_rerank(hyps, fb):
-        gen["generator"].rank(hyps, fb)
+    def fake_rerank(hyps, fb, weights=None):
+        gen["generator"].rank(hyps, fb, weights)
         return hyps
     monkeypatch.setattr(gw["clients"], "rerank", fake_rerank)
 

@@ -171,6 +171,19 @@ DOMAIN_RULES = [
 ]
 
 
+def _doc_meta(path: Path) -> dict:
+    """Метаданные документа-источника (ТЗ: источники, даты, авторы)."""
+    try:
+        props = docx.Document(str(path)).core_properties
+        return {
+            "author": props.author or None,
+            "date": str(props.created.date()) if props.created else None,
+            "file": path.name,
+        }
+    except Exception:
+        return {"author": None, "date": None, "file": path.name}
+
+
 def _read_docx_paragraphs(path: Path) -> list[str]:
     d = docx.Document(str(path))
     out = [p.text.strip() for p in d.paragraphs if p.text.strip()]
@@ -200,10 +213,12 @@ def build_kb(data_dir: str | Path) -> dict:
     # 1. справка
     guide = next(data_dir.glob("Как читать отчет*.docx"), None)
     if guide:
+        gmeta = _doc_meta(guide)
         for i, p in enumerate(_read_docx_paragraphs(guide)):
             kb["chunks"].append({
                 "id": f"guide-{i}", "kind": "guide",
                 "source": "Справка института «Как читать отчёт по хвостам»",
+                "meta": gmeta,
                 "text": p})
 
     # 2. каталог экспертных гипотез из примеров
@@ -211,6 +226,7 @@ def build_kb(data_dir: str | Path) -> dict:
     for hyp_file in sorted(data_dir.glob("Пример */Гипотезы*.docx")):
         plant = hyp_file.parent.name  # 'Пример 1'
         label = hyp_file.stem.replace("Гипотезы", "").strip()
+        doc_meta = _doc_meta(hyp_file)
         for line in _read_docx_paragraphs(hyp_file):
             m = re.match(r"^\d+\.\s*(.+)$", line)
             if not m:
@@ -222,6 +238,7 @@ def build_kb(data_dir: str | Path) -> dict:
                 "id": f"cat-{len(kb['catalog'])+1:02d}",
                 "title": title,
                 "source": f"Мозговой штурм экспертов, {plant} ({label})",
+                "meta": doc_meta,
                 "plants": [label],
                 **meta,
             }

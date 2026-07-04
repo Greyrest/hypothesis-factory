@@ -17,6 +17,10 @@ class LLMProvider(ABC):
         """context -> items по HYP_SCHEMA. None => усиление недоступно
         (нет ключа/сети/квоты), конвейер остаётся на rule-based."""
 
+    def translate(self, texts: list[str], lang: str) -> list[str] | None:
+        """Перевод на en/zh (мультиязычность из ТЗ). None => недоступно."""
+        return None
+
 
 class NullProvider(LLMProvider):
     """LLM отключён (локальный контур без внешних вызовов)."""

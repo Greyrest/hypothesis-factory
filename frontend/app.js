@@ -8,8 +8,19 @@ let network = null;     // vis.Network
 let graphEdit = false;  // режим правки графа
 const fmtT = (v) => (v == null ? "—" : Math.round(v).toLocaleString("ru-RU"));
 
-async function api(path, opts) {
-  const r = await fetch(API + path, opts);
+async function api(path, opts = {}) {
+  // разграничение доступа: ключ хранится локально, спрашивается при 401
+  const key = localStorage.getItem("hf_api_key");
+  opts.headers = { ...(opts.headers || {}), ...(key ? { "X-API-Key": key } : {}) };
+  let r = await fetch(API + path, opts);
+  if (r.status === 401) {
+    const entered = prompt("API-ключ (HF_API_KEY):");
+    if (entered) {
+      localStorage.setItem("hf_api_key", entered);
+      opts.headers["X-API-Key"] = entered;
+      r = await fetch(API + path, opts);
+    }
+  }
   if (!r.ok) throw new Error(`${r.status}: ${await r.text()}`);
   return r.json();
 }
@@ -102,6 +113,25 @@ async function removeHyp(hypId) {
   await api(`/plants/${encodeURIComponent(current)}/hypotheses/${encodeURIComponent(hypId)}`,
     { method: "DELETE" });
   await renderPlant();
+}
+
+async function applyWeights() {
+  await postJSON("/weights", {
+    impact: +$("#w-impact").value, feasibility: +$("#w-feas").value,
+    risk: +$("#w-risk").value, novelty: +$("#w-nov").value,
+  }, "PUT");
+  await renderPlant();
+}
+
+async function runWhatIf() {
+  const signal = $("#wi-signal").value;
+  const pct = +$("#wi-pct").value;
+  const r = await api(`/plants/${encodeURIComponent(current)}/whatif` +
+    `?signal=${signal}&reduction_pct=${pct}`);
+  $("#wi-result").textContent =
+    `адресуемо Ni ${fmtT(r.addressable_t.ni)} т / Cu ${fmtT(r.addressable_t.cu)} т → ` +
+    `при устранении ${pct}%: −${fmtT(r.kpi_delta_t.ni)} т Ni, −${fmtT(r.kpi_delta_t.cu)} т Cu ` +
+    `(остаток потерь: Ni ${fmtT(r.losses_after_t.ni)} т)`;
 }
 
 async function addHypothesis() {
@@ -246,7 +276,10 @@ async function graphReset() {
 // ------------------------------------------------------------------- страница
 async function renderPlant() {
   const result = await api(`/plants/${encodeURIComponent(current)}`);
+  const weights = await api("/weights");
   const s = result.summary;
+  const signals = [...new Set(result.findings
+    .filter((f) => !f.informational).map((f) => f.signal))];
   const findings = result.findings.slice(0, 8).map((f) =>
     `<li class="${f.informational ? "info" : ""}">${f.informational ? "(справочно) " : ""}
      <b>${f.title}</b> — ${fmtT(f.tons)} т (${f.share_of_losses_pct}% потерь потока)</li>`
@@ -270,6 +303,17 @@ async function renderPlant() {
     </div>
     <h2>Матрица потерь</h2>${heatmap(result.cells)}
     <h2>Находки диагностики</h2><ul class="findings">${findings}</ul>
+    <div class="add-hyp">
+      <h3>🔮 Что-если (контрфактуальный анализ)</h3>
+      <div class="pf-row">
+        <select id="wi-signal">${signals.map((x) =>
+          `<option value="${x}">${x}</option>`).join("")}</select>
+        <label class="llm-label">устранить <input id="wi-pct" type="number"
+          value="50" min="0" max="100" style="width:60px"> % потерь сигнала</label>
+        <button class="ghost" onclick="runWhatIf()">Посчитать</button>
+      </div>
+      <span id="wi-result" class="engine"></span>
+    </div>
     <h2>Граф знаний: класс → диагноз → гипотеза → KPI</h2>
     <div class="graph-tools">
       <button class="ghost" onclick="graphDeleteSelected()">🗑 Удалить выбранное</button>
@@ -279,6 +323,20 @@ async function renderPlant() {
     </div>
     <div id="graph"></div>
     <h2>Гипотезы (${result.hypotheses.length})</h2>
+    <div class="add-hyp">
+      <h3>⚖️ Настройки эксперта: веса ранжирования</h3>
+      <div class="pf-row">
+        <label class="llm-label">эффект <input id="w-impact" type="number" step="0.05"
+          min="0" value="${weights.impact}" style="width:70px"></label>
+        <label class="llm-label">реализуемость <input id="w-feas" type="number" step="0.05"
+          min="0" value="${weights.feasibility}" style="width:70px"></label>
+        <label class="llm-label">риск <input id="w-risk" type="number" step="0.05"
+          min="0" value="${weights.risk}" style="width:70px"></label>
+        <label class="llm-label">новизна <input id="w-nov" type="number" step="0.05"
+          min="0" value="${weights.novelty}" style="width:70px"></label>
+        <button class="ghost" onclick="applyWeights()">Применить и переранжировать</button>
+      </div>
+    </div>
     <div class="add-hyp">
       <h3>➕ Своя гипотеза</h3>
       <p class="engine">Система сама определит категорию, адресуемый металл по ячейкам
@@ -307,6 +365,10 @@ async function renderPlant() {
       <a href="${API}/plants/${encodeURIComponent(current)}/export?fmt=json">JSON</a>
       <a href="${API}/plants/${encodeURIComponent(current)}/export?fmt=csv">CSV</a>
       <a href="${API}/plants/${encodeURIComponent(current)}/export?fmt=md">Markdown</a>
+      <a href="${API}/plants/${encodeURIComponent(current)}/export?fmt=docx">DOCX</a>
+      <a href="${API}/plants/${encodeURIComponent(current)}/export?fmt=md&lang=en">MD·EN</a>
+      <a href="${API}/plants/${encodeURIComponent(current)}/export?fmt=md&lang=zh">MD·中文</a>
+      <span class="engine">(EN/中文 — через LLM-слой; PDF — печать MD/DOCX)</span>
     </p>`;
   await renderGraph();
 }
@@ -314,5 +376,5 @@ async function renderPlant() {
 $("#run-btn").onclick = runPipeline;
 $("#upload-btn").onclick = uploadReport;
 Object.assign(window, { vote, setStatus, removeHyp, addHypothesis,
-  graphDeleteSelected, graphLinkSelected, graphReset });
+  graphDeleteSelected, graphLinkSelected, graphReset, applyWeights, runWhatIf });
 loadPlants().catch(() => {}); // при пустом состоянии остаётся подсказка

@@ -532,6 +532,124 @@
         }
       }
     },
+    "/api/v1/weights": {
+      "get": {
+        "summary": "Get Weights",
+        "operationId": "get_weights_api_v1_weights_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Weights"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Set Weights",
+        "description": "Экспертная настройка весов ранжирования + переранжирование всего.",
+        "operationId": "set_weights_api_v1_weights_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Weights"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Weights"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plants/{plant}/whatif": {
+      "get": {
+        "summary": "Whatif",
+        "description": "Контрфактуальный анализ: «если устранить N% потерь сигнала S,\nнасколько снизятся потери с хвостами».",
+        "operationId": "whatif_api_v1_plants__plant__whatif_get",
+        "parameters": [
+          {
+            "name": "plant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plant"
+            }
+          },
+          {
+            "name": "signal",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Signal"
+            }
+          },
+          {
+            "name": "reduction_pct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 100,
+              "minimum": 0,
+              "default": 50.0,
+              "title": "Reduction Pct"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Whatif Api V1 Plants  Plant  Whatif Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/feedback": {
       "get": {
         "summary": "Get Feedback",
@@ -614,7 +732,7 @@
     "/api/v1/plants/{plant}/export": {
       "get": {
         "summary": "Export",
-        "description": "Экспорт формируется на лету, на диск ничего не пишется.",
+        "description": "Экспорт формируется на лету. lang=en|zh переводит md/docx-отчёт\nчерез LLM-слой (мультиязычность из ТЗ; требует доступного провайдера).",
         "operationId": "export_api_v1_plants__plant__export_get",
         "parameters": [
           {
@@ -632,9 +750,20 @@
             "required": false,
             "schema": {
               "type": "string",
-              "pattern": "^(json|csv|md)$",
+              "pattern": "^(json|csv|md|docx)$",
               "default": "json",
               "title": "Fmt"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(ru|en|zh)$",
+              "default": "ru",
+              "title": "Lang"
             }
           }
         ],
@@ -1315,6 +1444,33 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "Weights": {
+        "properties": {
+          "impact": {
+            "type": "number",
+            "title": "Impact",
+            "default": 0.4
+          },
+          "feasibility": {
+            "type": "number",
+            "title": "Feasibility",
+            "default": 0.3
+          },
+          "risk": {
+            "type": "number",
+            "title": "Risk",
+            "default": 0.2
+          },
+          "novelty": {
+            "type": "number",
+            "title": "Novelty",
+            "default": 0.1
+          }
+        },
+        "type": "object",
+        "title": "Weights",
+        "description": "Веса критериев ранжирования (эксперт, ТЗ 8.2). Нормируются к сумме 1."
       }
     }
   }

@@ -23,10 +23,12 @@ def parse_xlsx(filename: str, content: bytes) -> dict:
 
 
 def generate(parsed: dict, use_llm: bool, feedback: dict | None,
-             project: dict | None = None) -> dict:
+             project: dict | None = None,
+             weights: dict | None = None) -> dict:
     r = httpx.post(f"{GENERATION_URL}/api/v1/generate",
                    json={"parsed": parsed, "use_llm": use_llm,
-                         "feedback": feedback, "project": project},
+                         "feedback": feedback, "project": project,
+                         "weights": weights},
                    timeout=TIMEOUT)
     r.raise_for_status()
     return r.json()
@@ -42,12 +44,30 @@ def analyze_hypothesis(diagnosis: dict, text: str, title: str | None,
     return r.json()
 
 
-def rerank(hypotheses: list[dict], feedback: dict | None) -> list[dict]:
+def rerank(hypotheses: list[dict], feedback: dict | None,
+           weights: dict | None = None) -> list[dict]:
     r = httpx.post(f"{GENERATION_URL}/api/v1/rerank",
-                   json={"hypotheses": hypotheses, "feedback": feedback},
+                   json={"hypotheses": hypotheses, "feedback": feedback,
+                         "weights": weights},
                    timeout=TIMEOUT)
     r.raise_for_status()
     return r.json()
+
+
+def whatif(diagnosis: dict, signal: str, reduction_pct: float) -> dict:
+    r = httpx.post(f"{GENERATION_URL}/api/v1/whatif",
+                   json={"diagnosis": diagnosis, "signal": signal,
+                         "reduction_pct": reduction_pct},
+                   timeout=TIMEOUT)
+    r.raise_for_status()
+    return r.json()
+
+
+def llm_translate(texts: list[str], lang: str) -> list[str] | None:
+    r = httpx.post(f"{LLM_URL}/api/v1/translate",
+                   json={"texts": texts, "lang": lang}, timeout=TIMEOUT)
+    r.raise_for_status()
+    return r.json()["translations"]
 
 
 def services_health() -> dict:

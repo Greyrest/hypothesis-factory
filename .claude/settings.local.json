@@ -44,7 +44,16 @@
       "Bash(HF_PERSIST=0 docker compose up -d gateway)",
       "Bash(docker exec *)",
       "WebFetch(domain:nornickel-ai-hackathon.ru)",
-      "Bash(.venv/bin/pip -q install pytest)"
+      "Bash(.venv/bin/pip -q install pytest)",
+      "Bash(curl -s -X PUT http://localhost:8000/api/v1/weights -H 'Content-Type: application/json' -d '{\"impact\":0.1,\"feasibility\":0.6,\"risk\":0.2,\"novelty\":0.1}')",
+      "Bash(curl -s \"http://localhost:8000/api/v1/plants/ТОФ/hypotheses\")",
+      "Bash(python3 -c 'import json,sys; hs=json.load\\(sys.stdin\\); print\\(\"топ после смены весов:\", hs[0][\"title\"][:50], \"| feas:\", hs[0][\"scores\"][\"feasibility\"]\\)')",
+      "Bash(curl -s \"http://localhost:8000/api/v1/plants/ТОФ/whatif?signal=coarse_locked&reduction_pct=50\")",
+      "Bash(python3 -c 'import json,sys; r=json.load\\(sys.stdin\\); print\\(\"what-if:\", r[\"addressable_t\"], \"->\", r[\"kpi_delta_t\"]\\)')",
+      "Bash(curl -s -o /tmp/report.docx -w 'docx: %{http_code} ' \"http://localhost:8000/api/v1/plants/ТОФ/export?fmt=docx\")",
+      "Read(//tmp/**)",
+      "Bash(curl -s -o /dev/null -w 'md?lang=en \\(без LLM\\): %{http_code}\\\\n' \"http://localhost:8000/api/v1/plants/ТОФ/export?fmt=md&lang=en\")",
+      "Bash(curl -s -X PUT http://localhost:8000/api/v1/weights -H 'Content-Type: application/json' -d '{\"impact\":0.4,\"feasibility\":0.3,\"risk\":0.2,\"novelty\":0.1}')"
     ]
   }
 }
