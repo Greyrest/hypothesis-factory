@@ -1,0 +1,84 @@
+= Развёртывание
+:toc: left
+:sectnums:
+:icons: font
+
+== Требования
+
+* Docker + Docker Compose (или Python 3.10+ для запуска без Docker).
+* Каталог данных задачи: отчёты `Пример */Хвосты*.xlsx`, справка
+  «Как читать отчет*.docx», эталонные «Гипотезы*.docx», литература (PDF).
+* LLM опциональна: без ключа система работает в rule-based режиме.
+
+== Docker Compose (рекомендуется)
+
+[source,bash]
+----
+cp .env.example .env          # заполнить при необходимости
+make up                       # = docker compose up -d --build
+----
+
+* Дашборд: http://localhost:8088
+* API и Swagger: http://localhost:8000/docs
+* Порты сервисов: gateway 8000, ingestion 8001, knowledge 8002,
+  generation 8003, llm 8004.
+
+Все контейнеры имеют healthcheck и `restart: unless-stopped`.
+Состояние gateway хранится в `./output/state.json` (том `/output`).
+
+== Переменные окружения
+
+[cols="1,1,3"]
+|===
+| Переменная | Умолчание | Смысл
+
+| `LLM_PROVIDER` | `anthropic` | `anthropic` \| `mock` \| `none`
+| `LLM_MODEL` | `claude-opus-4-8` | модель провайдера
+| `ANTHROPIC_API_KEY` | — | ключ Anthropic (только сервису `llm`)
+| `DATA_DIR` | `../Задача 1. …/Задача 1` | каталог данных задачи
+| `HF_PERSIST` | `1` | `0` — безфайловый режим (всё в памяти)
+| `HF_API_KEY` | — | включает авторизацию `X-API-Key` на gateway
+|===
+
+== Сценарии
+
+.Закрытый контур (без внешних вызовов)
+[source,bash]
+----
+LLM_PROVIDER=none make up
+----
+Ни одного исходящего запроса; конвейер полностью rule-based.
+Конфиденциальные документы не покидают контур — во внешнюю LLM данные
+уходят только при явно заданных `LLM_PROVIDER=anthropic` + ключе.
+
+.Смена нейронки
+[source,bash]
+----
+LLM_MODEL=claude-sonnet-4-6 make restart-llm   # пересобирается только llm
+----
+
+.Авторизация
+[source,bash]
+----
+HF_API_KEY=$(openssl rand -hex 16) make up
+----
+Все запросы (кроме health) потребуют `X-API-Key`; дашборд запросит ключ
+при первом 401. TLS-терминацию в проде выполняет reverse-proxy
+(nginx/traefik) перед gateway — приложение шифрование не реализует.
+
+== Запуск без Docker
+
+[source,bash]
+----
+make venv           # однократно
+make local          # 5 uvicorn + статика; Ctrl+C останавливает всё
+# или: bash scripts/run_local.sh --no-llm
+----
+
+== Эксплуатация
+
+* `make logs` — логи всех сервисов; `docker compose ps` — статусы и health.
+* `GET /api/v1/health` на gateway — сводное состояние всех сервисов.
+* Ошибки парсинга/LLM не роняют конвейер: битый xlsx → 422 на файл,
+  недоступная LLM → rule-based результат.
+* Резервная копия состояния = файл `output/state.json`.

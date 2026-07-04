@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -15,28 +16,31 @@ from .core import build_kb, retrieve
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
 
+_kb: dict = {"chunks": [], "catalog": [], "rules": []}
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    global _kb
+    if DATA_DIR.exists():
+        _kb = build_kb(DATA_DIR)
+    yield
+
+
 app = FastAPI(
     title="HF Knowledge Service",
     description="База знаний для генерации гипотез: чанки справки с цитированием, "
     "каталог практик из мозговых штурмов 4 фабрик, правила физики обогащения "
     "с привязкой к литературе; лексический retrieval.",
     version="1.0.0",
+    lifespan=_lifespan,
 )
-
-_kb: dict = {"chunks": [], "catalog": [], "rules": []}
 
 
 class RetrieveRequest(BaseModel):
     query_terms: list[str]
     kinds: list[str] = ["guide", "rule"]
     top_k: int = 6
-
-
-@app.on_event("startup")
-def _startup():
-    global _kb
-    if DATA_DIR.exists():
-        _kb = build_kb(DATA_DIR)
 
 
 @app.get("/api/v1/health")

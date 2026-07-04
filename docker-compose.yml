@@ -1,14 +1,28 @@
 # Фабрика гипотез — микросервисная раскладка.
 # Смена нейронки: поменяйте LLM_PROVIDER / LLM_MODEL у сервиса llm и
 # перезапустите только его — остальные сервисы не трогаются.
+# Переменные окружения читаются из .env (см. .env.example).
+
+x-py-health: &py-health
+  healthcheck:
+    test: ["CMD", "python", "-c",
+           "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=3)"]
+    interval: 30s
+    timeout: 5s
+    retries: 3
+    start_period: 10s
 
 services:
   ingestion:
     build: ./services/ingestion
+    restart: unless-stopped
+    <<: *py-health
     ports: ["8001:8000"]
 
   knowledge:
     build: ./services/knowledge
+    restart: unless-stopped
+    <<: *py-health
     environment:
       DATA_DIR: /data
     volumes:
@@ -17,6 +31,8 @@ services:
 
   generation:
     build: ./services/generation
+    restart: unless-stopped
+    <<: *py-health
     environment:
       KNOWLEDGE_URL: http://knowledge:8000
       LLM_URL: http://llm:8000
@@ -25,6 +41,8 @@ services:
 
   llm:
     build: ./services/llm
+    restart: unless-stopped
+    <<: *py-health
     environment:
       LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}   # anthropic | mock | none
       LLM_MODEL: ${LLM_MODEL:-claude-opus-4-8}
@@ -35,6 +53,8 @@ services:
     build:
       context: .
       dockerfile: services/gateway/Dockerfile
+    restart: unless-stopped
+    <<: *py-health
     environment:
       DATA_DIR: /data
       OUTPUT_DIR: /output
@@ -52,6 +72,12 @@ services:
 
   frontend:
     image: nginx:alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO/dev/null", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     volumes:
       - ./frontend:/usr/share/nginx/html:ro
     depends_on: [gateway]

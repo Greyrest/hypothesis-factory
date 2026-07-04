@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import quote
 
@@ -34,11 +35,32 @@ PERSIST = os.environ.get("HF_PERSIST", "1") not in ("0", "false", "no")
 # HF_API_KEY — если задан, все запросы (кроме health) требуют X-API-Key
 API_KEY = os.environ.get("HF_API_KEY") or None
 
+def _load_state():
+    global _results, _graph_patch, _feedback, _evaluation, _weights
+    if PERSIST and STATE_FILE.exists():
+        state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        if "results" in state:
+            _results = state["results"]
+            _graph_patch = state.get("graph_patch", {})
+            _feedback = state.get("feedback", {})
+            _evaluation = state.get("evaluation", {})
+            _weights = state.get("weights", {})
+        else:  # старый формат: плоский dict результатов
+            _results = state
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    _load_state()
+    yield
+
+
 app = FastAPI(
     title="Фабрика гипотез — API",
     description="Генерация и приоритизация технологических гипотез снижения "
     "потерь цветных металлов с хвостами флотации (хакатон Норникеля, задача 1).",
     version="1.1.0",
+    lifespan=_lifespan,
 )
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
                    allow_headers=["*"])
@@ -118,21 +140,6 @@ def _persist():
                     "feedback": _feedback, "evaluation": _evaluation,
                     "weights": _weights},
                    ensure_ascii=False), encoding="utf-8")
-
-
-@app.on_event("startup")
-def _load_state():
-    global _results, _graph_patch, _feedback, _evaluation, _weights
-    if PERSIST and STATE_FILE.exists():
-        state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
-        if "results" in state:
-            _results = state["results"]
-            _graph_patch = state.get("graph_patch", {})
-            _feedback = state.get("feedback", {})
-            _evaluation = state.get("evaluation", {})
-            _weights = state.get("weights", {})
-        else:  # старый формат: плоский dict результатов
-            _results = state
 
 
 def _get(plant: str) -> dict:

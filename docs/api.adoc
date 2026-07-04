@@ -1,0 +1,120 @@
+= API
+:toc: left
+:sectnums:
+:icons: font
+
+Актуальные машинные спеки — `openapi/*.json` (обновление: `make openapi`);
+интерактивная документация — `/docs` у каждого сервиса.
+Ниже — справочник публичного API gateway (`http://localhost:8000`).
+
+== Авторизация
+
+Если задан `HF_API_KEY`, все запросы (кроме `/api/v1/health`) требуют
+заголовок `X-API-Key`. Без переменной API открыт (режим по умолчанию
+для локального контура).
+
+== Запуски конвейера
+
+[cols="1,3,4"]
+|===
+| Метод | Путь | Описание
+
+| POST | `/api/v1/runs?use_llm=`
+| Прогон всех отчётов `Пример */Хвосты*.xlsx` из `DATA_DIR`.
+  Body (опц.): `{"target_kpi": "...", "constraints": ["..."]}` —
+  интерактивная R&D-задача, попадает в контекст LLM и карточку проекта.
+  Возвращает список фабрик, движок и leave-one-out оценку.
+
+| POST | `/api/v1/reports?use_llm=`
+| Конвейер для одного загруженного отчёта: multipart `file` (xlsx) +
+  form-поля `target_kpi`, `constraints` (по строке).
+|===
+
+== Результаты и гипотезы
+
+[cols="1,3,4"]
+|===
+| Метод | Путь | Описание
+
+| GET | `/api/v1/plants`
+| Сводки по фабрикам: движок, потери, проект, число гипотез.
+
+| GET | `/api/v1/plants/{plant}`
+| Полный результат: сводка, находки, ячейки (heatmap), гипотезы.
+
+| GET | `/api/v1/plants/{plant}/hypotheses`
+| Карточки гипотез по приоритету.
+
+| POST | `/api/v1/plants/{plant}/hypotheses`
+| Произвольная гипотеза эксперта: `{"text": "...", "title"?, "category"?}`.
+  Система определяет категорию по терминологии, считает адресуемый металл
+  по ячейкам отчёта, подбирает обоснование и ставит в общее ранжирование
+  (status `expert_added`).
+
+| PATCH | `/api/v1/plants/{plant}/hypotheses/{id}`
+| Валидация эксперта: `{"status": "confirmed"\|"rejected"}`.
+  Подтверждённые поднимаются, отклонённые уходят вниз списка.
+
+| DELETE | `/api/v1/plants/{plant}/hypotheses/{id}`
+| Удаление гипотезы с переранжированием.
+|===
+
+== Граф знаний
+
+[cols="1,3,4"]
+|===
+| Метод | Путь | Описание
+
+| GET | `/api/v1/plants/{plant}/graph`
+| Узлы/рёбра: класс крупности → находка → гипотеза → KPI + правки эксперта.
+
+| POST | `/api/v1/plants/{plant}/graph/patch`
+| Правки: `{"removed_nodes": [], "removed_edges": [], "added_edges":
+  [{"from","to"}]}`. Идемпотентно; правки переживают повторную генерацию.
+
+| DELETE | `/api/v1/plants/{plant}/graph/patch`
+| Сброс правок.
+|===
+
+== Настройки эксперта и аналитика
+
+[cols="1,3,4"]
+|===
+| Метод | Путь | Описание
+
+| GET/PUT | `/api/v1/weights`
+| Веса ранжирования `{impact, feasibility, risk, novelty}` (нормируются
+  к сумме 1). PUT переранжирует все результаты.
+
+| POST | `/api/v1/feedback`
+| Голос по категории: `{"category": "FLOT", "vote": "up"\|"down"}` →
+  мгновенное переранжирование (+3 за голос, потолок ±10).
+
+| GET | `/api/v1/plants/{plant}/whatif?signal=&reduction_pct=`
+| Контрфактуальный анализ: адресуемый металл сигнала и эффект на KPI
+  при устранении заданной доли потерь.
+
+| GET | `/api/v1/evaluation`
+| Leave-one-out покрытие тем эталонных мозговых штурмов.
+|===
+
+== Экспорт
+
+`GET /api/v1/plants/{plant}/export?fmt=json|csv|md|docx&lang=ru|en|zh`
+
+Формируется на лету из актуального состояния. CSV — с BOM для Excel.
+`lang=en|zh` переводит markdown-отчёт через LLM-слой (требуется доступный
+провайдер, иначе 503). PDF — печать MD/DOCX.
+
+== Внутренние сервисы
+
+[cols="1,2,4"]
+|===
+| Сервис | Эндпоинт | Назначение
+
+| ingestion | `POST /api/v1/parse` | multipart xlsx → структурированный JSON
+| knowledge | `GET /api/v1/kb`, `POST /api/v1/retrieve`, `POST /api/v1/kb/rebuild` | база знаний и retrieval
+| generation | `POST /api/v1/generate`, `/diagnose`, `/analyze`, `/rerank`, `/whatif` | конвейер генерации
+| llm | `POST /api/v1/enhance`, `/translate` | вызовы нейронки (structured)
+| все | `GET /api/v1/health` | статус; у gateway — сводный по всем сервисам
+|===

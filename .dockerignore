@@ -1,0 +1,14 @@
+.git
+.venv
+.claude
+output
+output_test
+docs
+frontend
+openapi
+tests
+scripts
+**/__pycache__
+**/*.pyc
+**/*.egg-info
+.env

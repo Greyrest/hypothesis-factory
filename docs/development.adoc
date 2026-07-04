@@ -1,0 +1,83 @@
+= Разработка
+:toc: left
+:sectnums:
+:icons: font
+
+== Структура репозитория
+
+[listing]
+----
+solution/
+├── services/
+│   ├── gateway/       # публичный API, оркестрация, экспорт, граф, auth
+│   ├── ingestion/     # парсер xlsx (core.py — чистая логика, main.py — API)
+│   ├── knowledge/     # база знаний + retrieval
+│   ├── generation/    # диагностика, генератор, ранжирование, analyze, whatif
+│   └── llm/           # providers/ + schema.py (единая схема structured-вывода)
+├── libs/contracts/    # hf_contracts: общие pydantic-модели
+├── frontend/          # SPA без сборки: index.html + app.js + styles.css
+├── tests/             # pytest, 36 тестов, все сервисы изолированно
+├── docs/              # эта документация (adoc)
+├── openapi/           # генерируемые спеки (make openapi, проверяется в CI)
+└── scripts/           # run_local.sh, export_openapi.py
+----
+
+Каждый сервис: `app/main.py` — FastAPI-обвязка, остальные модули — чистая
+логика без веб-зависимостей (тестируется напрямую).
+
+== Команды
+
+[source,bash]
+----
+make venv       # окружение + зависимости всех сервисов
+make test       # 36 тестов (~0.5 c)
+make up/down    # Docker-стек
+make openapi    # перегенерировать openapi/*.json (CI проверяет свежесть)
+make local      # запуск без Docker
+make clean      # кэши и артефакты
+----
+
+== Тесты
+
+`tests/conftest.py` загружает каждый сервис как отдельный пакет `app`
+(снапшот модулей, sys.path-изоляция) — сервисы тестируются без запуска
+соседей; межсервисные вызовы gateway замоканы через monkeypatch модуля
+`clients`. Синтетика: `make_parsed()` (отчёт), `make_kb()` (база знаний),
+`build_xlsx()` (реальный xlsx в памяти).
+
+Ключевые инварианты, закрытые тестами:
+
+* адресуемый металл гипотезы ≤ фактических потерь отчёта (физконтроль);
+* восстановление извлекаемого металла из форм при `#REF!` + warning;
+* фидбэк/веса/валидация меняют ранжирование предсказуемо;
+* недоступная LLM → `None` → rule-based, без исключений;
+* битый xlsx → 422, неизвестная фабрика → 404, ключ → 401.
+
+== Как добавить LLM-провайдера
+
+. `services/llm/app/providers/my_provider.py` — класс, реализующий
+  `LLMProvider` (`enhance(context) -> items|None`, опц. `translate`).
+  Ответ обязан соответствовать `schema.HYP_SCHEMA`.
+. Ветка в `providers/__init__.py:get_provider()`.
+. `LLM_PROVIDER=my_provider make restart-llm`.
+
+Остальные сервисы изменений не требуют.
+
+== Как добавить категорию мероприятий
+
+В `services/generation/app/generator.py`: `CATEGORY_RU`, `UPLIFT`,
+`ROADMAP`, `RISKS`; сигналы — `SIGNAL_CELLS`; автокатегоризация гипотез
+эксперта — `analyze.py:CATEGORY_PATTERNS` и `CATEGORY_SIGNALS`.
+
+== CI
+
+`.github/workflows/ci.yml`: pytest на Python 3.11, проверка свежести
+`openapi/*.json`, сборка всех Docker-образов.
+
+== Соглашения
+
+* Python 3.10+, аннотации типов, русские докстринги.
+* Межсервисные контракты — JSON; расширять поля можно (модели с
+  `extra="allow"`), переименовывать/удалять — нельзя без версии API.
+* Ошибки downstream-сервисов не должны ронять конвейер: деградация
+  (rule-based, 422 на файл) вместо 500.

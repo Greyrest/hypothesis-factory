@@ -4,6 +4,12 @@
 снижения потерь цветных металлов с хвостами флотации.
 Хакатон Норникеля, «Задача 1. Фабрика гипотез».
 
+📚 **Документация:** [обзор](docs/index.adoc) ·
+[архитектура](docs/architecture.adoc) · [API](docs/api.adoc) ·
+[развёртывание](docs/deployment.adoc) ·
+[руководство пользователя](docs/user-guide.adoc) ·
+[разработка](docs/development.adoc)
+
 Вход — отчёт института о хвостах (`Хвосты *.xlsx`). Выход — ранжированные карточки
 гипотез с обоснованием и цитатами, оценкой эффекта на KPI, рисками и дорожной
 картой проверки + веб-дашборд с графом знаний и обратной связью эксперта.
@@ -55,9 +61,10 @@ solution/
 ### Docker
 
 ```bash
-cd solution
-ANTHROPIC_API_KEY=sk-... docker compose up --build   # с LLM
-LLM_PROVIDER=none docker compose up --build          # оффлайн rule-based
+cp .env.example .env   # опционально: ключи и настройки
+make up                # собрать и поднять весь стек
+make down / make logs  # остановить / логи
+LLM_PROVIDER=none make up   # оффлайн rule-based режим
 ```
 
 Дашборд: http://localhost:8088 · API: http://localhost:8000/docs
@@ -65,7 +72,7 @@ LLM_PROVIDER=none docker compose up --build          # оффлайн rule-based
 ### Локально без Docker
 
 ```bash
-bash scripts/run_local.sh            # venv -> deps -> 5 сервисов + статика
+make venv && make local              # 5 сервисов + статика
 bash scripts/run_local.sh --no-llm   # принудительно без LLM
 ```
 

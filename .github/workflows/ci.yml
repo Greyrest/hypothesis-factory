@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          pip install -r services/ingestion/requirements.txt \
+                      -r services/knowledge/requirements.txt \
+                      -r services/generation/requirements.txt \
+                      -r services/llm/requirements.txt \
+                      -r services/gateway/requirements.txt \
+                      -e libs/contracts pytest
+      - name: Run tests
+        run: python -m pytest tests -q
+      - name: OpenAPI specs are up to date
+        run: |
+          python scripts/export_openapi.py
+          git diff --exit-code openapi/
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build all images
+        run: docker compose build
